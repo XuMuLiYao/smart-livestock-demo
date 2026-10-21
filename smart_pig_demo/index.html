@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>智慧畜牧数字化管理与核心经营指标大屏 · smartpastoral.com</title>
+  <meta name="description" content="基于图书情报学元数据标引与法定养殖档案（75张表）底座的生猪与奶牛双畜种数字化经营指标大屏系统">
+  <link rel="icon" href="https://img.icons8.com/fluency/96/dairy-cow.png" type="image/png">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0E1117;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    #loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0E1117;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      color: #FFFFFF;
+      transition: opacity 0.5s ease-out;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      border-top-color: #2E75B6;
+      animation: spin 1s ease-in-out infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .loading-title {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .loading-sub {
+      font-size: 13px;
+      color: #8C9BAB;
+    }
+    iframe {
+      width: 100vw;
+      height: 100vh;
+      border: none;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-screen">
+    <div class="spinner"></div>
+    <div class="loading-title">正在加载智慧畜牧数字化管理系统...</div>
+    <div class="loading-sub">smartpastoral.com · 畜牧图情结合示范工程</div>
+  </div>
+
+  <iframe 
+    id="streamlit-frame" 
+    src="https://smartpastoral.streamlit.app/?embed=true" 
+    allow="accelerometer; autoplay; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write;"
+    onload="hideLoading()">
+  </iframe>
+
+  <script>
+    function hideLoading() {
+      const loader = document.getElementById('loading-screen');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => {
+          loader.style.display = 'none';
+        }, 500);
+      }
+    }
+    // 超时兜底隐藏加载动画
+    setTimeout(hideLoading, 5000);
+  </script>
+</body>
+</html>

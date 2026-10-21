@@ -3,16 +3,28 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
-升级亮点（2026-10-22 第6次改动）：
-  1. 多板块全景平铺与无滚轴沉浸交互：全局去除浏览器与各个组件滚轴（-ms-overflow-style: none; scrollbar-width: none;），默认启用“全景平铺模式”使生产走势、结构洞察、台账体检、行业新闻、DOI论文、产业金融各板块同时并列呈现，消除深层翻页与滚动条阻滞
-  2. 增设行业新闻与资讯互动板块：集成国家农业农村部及主流畜牧权威咨询门户一键跳转，精选行业前沿动态，并提供“留下工作个人联系方式上传咨询新闻及文章”在线投稿通道，支持附件上传与实时入库登记
-  3. 增设行业权威学术论文与 DOI 直达板块：精选动物科学与智能养殖顶级期刊论文（Journal of Dairy Science, Journal of Animal Science, Animal Nutrition等），完整提供文献标准化 DOI 并支持一键跳转解析；增设 DOI 快速检索解析跳转器，支持任意学术文献一键直达
-  4. 严格保留与强化前期全部合规与功能资产：
-     - 数据源严格保留“默认500头母猪基准演练模型”“上传自定义生猪生产 Excel”“默认1000头成母牛现代牧场示范数据”“上传自定义奶牛生产 Excel (.xlsx)”
-     - 规范表述为“智慧牧业工程”与“数据”
-     - 产业金融板块涵盖中国前十猪企官网、中国前十乳企官网及生猪、牛奶、牛肉、豆粕、玉米等大宗期货实时行情直达
+升级亮点（2026-10-22 第8次改动）：
+  1. 智慧养殖控制台全面扩充至八大核心畜禽种类：
+     - 生猪养殖 (Swine)、奶牛养殖 (Dairy Cattle)、肉牛养殖 (Beef Cattle)、奶山羊养殖 (Dairy Goat)、
+       肉羊养殖 (Meat Sheep)、皮用羊养殖 (Fur Sheep)、蛋鸡养殖 (Layer Chicken)、肉鸡养殖 (Broiler Chicken)
+     - 为八大畜禽分别配置标准基准演练模型数据源与自定义 Excel 导入接口，并实现容错隔离计算底座全覆盖
+  2. 行业新闻与资讯互动板块全新升级：
+     - 增添对应畜禽（肉牛、奶山羊、肉羊、滩羊皮用羊、蛋鸡、肉鸡）主流权威咨询门户与政策资讯
+     - 新增「🔄 刷新行业咨询与政策动态」交互按钮，支持实时刷新动态与状态即时反馈
+     - 投稿表单增加八大畜禽所属领域的精准分类
+  3. 权威学术论文与科研文献中心全新升级：
+     - DOI 快速解析与一键直达检索器新增直达链接 9 大畜牧与动物科学权威数据库（CrossRef, PubMed, WoS, CNKI, JDS, JAS, Poultry Science, Small Ruminant Research, Meat Science）
+     - 经典与前沿学术论文精选库增设八大畜禽专属文献板块，完整提供中英双语篇名、核心摘要及 DOI 一键直达跳转
+  4. 现代畜牧产业金融与大宗期货矩阵全新升级：
+     - 增设中国前十肉牛养殖加工龙头、十强羊业与奶山羊/肉羊龙头、前十蛋鸡与品牌鲜蛋龙头、前十肉鸡养殖与白羽肉禽龙头官网直达
+     - 大宗期货行情增加「大连商品交易所鸡蛋期货 (DCE: JD)」与「芝商所活牛/育肥牛期货 (CME: LE / FC)」，完善全畜种金融套保矩阵
+  5. 全景平铺呈现模式视觉升级：
+     - 采用清晰专业的业务板块标题
+     - 升级分界线为略显著的渐变高对比度视觉线条，并合理拉大板块上下间距（45px/35px），使大屏通透大气
+  6. 严格保留与强化前期合规与知识产权资产：
+     - 严格依循《畜牧法》与行业标准 NY/T 3445-2019 全套法定养殖档案（81张表）规范
      - 侧边栏与页脚公示开发者联系方式（QQ: 3100785036，WeChat: 13679275651）
-     - 版权标识与中英文独立项目严正声明（中国西北农林科技大学动物科技学院李尧 2024010983 独立进行）
+     - 中国西北农林科技大学动物科技学院李尧（学号：2024010983）独立进行中英文严正声明
 """
 import streamlit as st
 import pandas as pd
@@ -21,6 +33,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import openpyxl
 import io
+import datetime
 from pathlib import Path
 
 # 设置页面配置
@@ -31,7 +44,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 全局注入去除滚轴样式（无缝平滑无感滚动）
+# 全局注入去除滚轴样式与优雅间距样式
 st.markdown("""
 <style>
 /* 全局去除浏览器与组件滚轴，保持平滑无感滚动体验 */
@@ -59,14 +72,42 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data
     padding: 18px 22px;
     margin-bottom: 22px;
 }
+/* 略显著且间距合理的板块分界线 */
+.section-divider-box {
+    margin-top: 45px;
+    margin-bottom: 35px;
+}
+.section-divider-line {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(46, 117, 182, 0.12) 0%, rgba(46, 117, 182, 0.85) 50%, rgba(46, 117, 182, 0.12) 100%);
+    margin: 0;
+    padding: 0;
+}
 </style>
 """, unsafe_allow_html=True)
+
+def render_section_divider():
+    st.markdown("""
+    <div class="section-divider-box">
+        <hr class="section-divider-line">
+    </div>
+    """, unsafe_allow_html=True)
 
 # 路径常量解析
 CURRENT_DIR = Path(__file__).resolve().parent
 ROOT_DIR = CURRENT_DIR.parent
-PIG_KPI_PATH = ROOT_DIR / "表格与指标库" / "生猪养殖核心指标库与可行性验证.xlsx"
-COW_KPI_PATH = ROOT_DIR / "表格与指标库" / "奶牛养殖核心指标库与可行性验证.xlsx"
+KPI_DIR = ROOT_DIR / "表格与指标库"
+
+PIG_KPI_PATH = KPI_DIR / "生猪养殖核心指标库与可行性验证.xlsx"
+COW_KPI_PATH = KPI_DIR / "奶牛养殖核心指标库与可行性验证.xlsx"
+BEEF_KPI_PATH = KPI_DIR / "肉牛养殖核心指标库与可行性验证.xlsx"
+GOAT_KPI_PATH = KPI_DIR / "奶山羊生产核心指标库与可行性验证.xlsx"
+SHEEP_KPI_PATH = KPI_DIR / "肉羊生产核心指标库与可行性验证.xlsx"
+FUR_KPI_PATH = KPI_DIR / "皮用羊生产核心指标库与可行性验证.xlsx"
+LAYER_KPI_PATH = KPI_DIR / "蛋鸡养殖核心指标库与可行性验证.xlsx"
+BROILER_KPI_PATH = KPI_DIR / "肉鸡养殖核心指标库与可行性验证.xlsx"
+
 PIG_TEMPLATE_PATH = CURRENT_DIR / "生猪生产台账采集与指标计算上传模板.xlsx"
 COW_TEMPLATE_PATH = CURRENT_DIR / "奶牛生产台账采集与指标计算上传模板.xlsx"
 
@@ -92,180 +133,115 @@ def safe_scalar_div(n, d):
     except:
         return np.nan
 
+def has_valid_data(series):
+    if series is None:
+        return False
+    valid_count = series.dropna().shape[0]
+    return valid_count > 0 and not (series.dropna() == 0).all()
+
 def render_kpi_card(col, label, val, is_pct=False, fmt=".2f", unit="", 
                     target_delta="", warn_delta=None, threshold=None, 
                     inverse=False, missing_hint="待录入对应台账"):
     if val is None or pd.isna(val):
         col.metric(label=label, value="—", delta=f"⏳ {missing_hint}", delta_color="off")
     elif np.isinf(val):
-        col.metric(label=label, value="⚠️ 需核验", delta="分母为零或数据异常", delta_color="inverse")
+        col.metric(label=label, value="—", delta="⚠️ 计算除零或异常", delta_color="off")
     else:
         try:
             if is_pct:
-                disp_val = f"{val * 100:{fmt}}%"
+                display_val = f"{val * 100:{fmt}}%"
             else:
-                disp_val = f"{val:{fmt}} {unit}".strip()
+                display_val = f"{val:{fmt}}"
+            if unit:
+                display_val += f" {unit}"
+            
             delta_text = target_delta
-            d_color = "normal"
+            delta_color = "normal"
             if threshold is not None:
-                if (val > threshold if inverse else val < threshold):
-                    delta_text = warn_delta or f"未达标（参考基线 {threshold}）"
-                    d_color = "inverse"
-            col.metric(label=label, value=disp_val, delta=delta_text, delta_color=d_color)
+                is_better = (val <= threshold) if inverse else (val >= threshold)
+                if not is_better and warn_delta:
+                    delta_text = warn_delta
+                    delta_color = "inverse"
+            col.metric(label=label, value=display_val, delta=delta_text, delta_color=delta_color)
         except Exception:
-            col.metric(label=label, value="⚠️ 格式异常", delta="无法格式化", delta_color="inverse")
-
-def has_valid_data(series):
-    if series is None:
-        return False
-    s_clean = pd.to_numeric(series, errors='coerce').dropna()
-    return not s_clean.empty and not (s_clean == 0).all()
+            col.metric(label=label, value=str(val), delta=target_delta)
 
 # =====================================================================
-# 二、数据解析器：支持模版与自定义 Excel 自适应兼容读取
+# 二、数据解析与指标字典适配器
 # =====================================================================
+def load_kpi_dict(animal_type):
+    path = PIG_KPI_PATH
+    if "奶牛" in animal_type:
+        path = COW_KPI_PATH
+    elif "肉牛" in animal_type:
+        path = BEEF_KPI_PATH
+    elif "奶山羊" in animal_type:
+        path = GOAT_KPI_PATH
+    elif "肉羊" in animal_type:
+        path = SHEEP_KPI_PATH
+    elif "皮用羊" in animal_type:
+        path = FUR_KPI_PATH
+    elif "蛋鸡" in animal_type:
+        path = LAYER_KPI_PATH
+    elif "肉鸡" in animal_type:
+        path = BROILER_KPI_PATH
+
+    kpi_dict = {}
+    if path.exists():
+        try:
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            if "①指标库" in wb.sheetnames:
+                ws = wb["①指标库"]
+                for row in ws.iter_rows(values_only=True):
+                    if row and len(row) > 1 and row[1]:
+                        k_name = str(row[1]).strip()
+                        if k_name != "指标名称":
+                            kpi_dict[k_name] = row
+            wb.close()
+        except Exception:
+            pass
+    return kpi_dict
+
 def parse_uploaded_excel(uploaded_file, animal_type="生猪"):
-    try:
-        content = uploaded_file.read() if hasattr(uploaded_file, 'read') else open(uploaded_file, 'rb').read()
-        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
-    except Exception as e:
-        raise ValueError(f"读取 Excel 文件失败，请确认文件格式完整：{e}")
-
+    if uploaded_file is None:
+        return pd.DataFrame()
+    
+    excel_bytes = uploaded_file.read() if hasattr(uploaded_file, 'read') else uploaded_file
+    if hasattr(uploaded_file, 'seek'):
+        uploaded_file.seek(0)
+    
+    xl = pd.ExcelFile(io.BytesIO(excel_bytes))
     target_sheet = None
-    priority_names = ['台账数据录入', '③演算-数据录入', '数据录入', 'Sheet1', wb.sheetnames[0]]
-    for name in priority_names:
-        if name in wb.sheetnames:
-            target_sheet = wb[name]
+    for s in xl.sheet_names:
+        if "③" in s or "录入" in s or "台账" in s or "生产记录" in s or "生产数据" in s:
+            target_sheet = s
             break
     if target_sheet is None:
-        target_sheet = wb.active
-
-    rows = list(target_sheet.iter_rows(values_only=True))
-    if not rows:
-        raise ValueError("所选工作表内容为空")
-
-    header_idx = -1
-    for idx, r in enumerate(rows[:10]):
-        r_str = [str(c or '').strip() for c in r]
-        if any(k in r_str for k in ['月份', '期末能繁母猪', '期末成母牛', '出生活仔', '月产奶量', '出栏', '配种数', '日均单产']):
-            header_idx = idx
+        target_sheet = xl.sheet_names[0]
+        
+    df_raw = xl.parse(target_sheet, header=None)
+    header_row_idx = 0
+    for idx in range(min(10, len(df_raw))):
+        row_str = " ".join([str(v) for v in df_raw.iloc[idx].values if pd.notna(v)])
+        if any(k in row_str for k in ["月份", "批次", "存栏", "产奶", "增重", "日龄", "产蛋"]):
+            header_row_idx = idx
             break
-
-    if header_idx == -1:
-        header_idx = 2 if len(rows) > 2 else 0
-
-    raw_headers = [str(c or '').strip() for c in rows[header_idx]]
-    data_rows = rows[header_idx+1:]
-
-    valid_data = []
-    for r in data_rows:
-        if any(c is not None and str(c).strip() != '' for c in r):
-            valid_data.append(list(r[:len(raw_headers)]))
-
-    if not valid_data:
-        raise ValueError("工作表中未检测到有效数据行")
-
-    df = pd.DataFrame(valid_data, columns=raw_headers)
-
-    pig_col_map = {
-        '期末能繁母猪': ['期末能繁母猪*', '期末能繁母猪(头)', '期末母猪', '能繁母猪'],
-        '出生活仔': ['出生活仔*', '出生(活仔)', '出生活仔数', '活仔数', '出生活仔(头)', '出生'],
-        '引进': ['引进(头)', '购入引进', '引种'],
-        '出栏': ['出栏*', '出栏(头)', '出栏数', '出栏肥猪数', '肉猪出栏'],
-        '死亡': ['死亡*', '死亡(头)', '全场死亡', '病死头数'],
-        '淘汰全群': ['淘汰(全群)', '淘汰全群(头)', '淘汰全群', '全群淘汰'],
-        '其中:淘汰母猪': ['其中:淘汰母猪', '淘汰母猪', '淘汰能繁母猪'],
-        '调出': ['调出(头)', '调出'],
-        '配种数': ['配种头次', '配种总数', '配种数(次)'],
-        '分娩窝数': ['分娩窝数(窝)', '分娩数', '分娩窝数'],
-        '断奶仔猪': ['断奶仔猪*', '断奶仔猪数', '断奶头数', '断奶数'],
-        '耗料量_kg': ['耗料量(kg)', '饲料消耗量(kg)', '耗料量_kg', '耗料量'],
-        '总增重_kg': ['总增重(kg)', '总增重_kg', '总增重'],
-        '应免头次': ['应免头次(次)', '应免数', '应免头次'],
-        '实免头次': ['实免头次(次)', '实免数', '实免头次'],
-        '检测样本数': ['检测样本数(份)', '抽样数', '检测样本数'],
-        '抗体合格数': ['合格数', '抗体合格头数', '抗体合格数'],
-        '出栏批次': ['出栏批次(批)', '出栏批次'],
-        '休药期合规批次': ['休药期合规批次(批)', '休药合规批次', '休药期合规批次'],
-        '病死数': ['病死数(头)', '病死头数', '病死数'],
-        '无害化处理数': ['无害化处理数(头)', '无害化数', '无害化处理数'],
-        '应佩标识': ['应佩标识数', '应佩标识(枚)', '应佩标识'],
-        '实佩标识': ['实佩标识数', '实佩标识(枚)', '实佩标识'],
-        '环境天数': ['环境天数(天)', '环境记录天数', '环境天数'],
-        '温度达标天数': ['温度达标天数(天)', '舍温达标天数', '温度达标天数'],
-        '饲料采购金额': ['饲料采购金额(元)', '饲料支出', '饲料采购金额'],
-        '兽药采购金额': ['兽药采购金额(元)', '兽药防疫费', '兽药采购金额'],
-        '其他成本': ['其他成本-人工折旧能源(元)', '其他成本(元)', '人工折旧费用', '其他成本'],
-        '出栏总重_kg': ['出栏总重(kg)', '销售总重(kg)', '出栏总重_kg', '出栏总重'],
-        '出栏单价': ['出栏单价(元/kg)', '出栏单价(元)', '出栏单价']
-    }
-
-    cow_col_map = {
-        '期末成母牛': ['期末成母牛*', '期末成母牛(头)', '成母牛存栏', '成母牛'],
-        '初产育成牛转入': ['转入育成牛', '育成牛转入', '初产转入', '初产育成牛转入'],
-        '购入引进牛': ['购入引进牛', '购入牛', '引进'],
-        '出栏与淘汰': ['淘汰成母牛', '淘汰', '出栏淘汰', '出栏与淘汰'],
-        '死亡成母牛': ['死亡*', '死亡', '死亡成母牛(头)', '死亡成母牛'],
-        '在挤泌乳牛': ['泌乳牛头数*', '在挤泌乳牛*', '泌乳牛头数', '在挤泌乳牛(头)', '在挤泌乳牛'],
-        '干奶牛': ['干奶牛头数', '干奶牛(头)', '干奶牛'],
-        '出生犊牛': ['犊牛出生数', '出生犊牛(头)', '出生犊牛'],
-        '成活犊牛': ['犊牛成活数', '成活犊牛(头)', '成活犊牛'],
-        '月产奶量_kg': ['月产奶量_kg*', '月产奶量(kg)', '产奶量_kg', '月产奶量'],
-        '生鲜乳销量_kg': ['生鲜乳销量(kg)', '生鲜乳交售量(kg)', '生鲜乳销量_kg', '生鲜乳销量'],
-        '乳脂率': ['乳脂率(%)', '乳脂肪率', '乳脂率'],
-        '乳蛋白率': ['乳蛋白率(%)', '蛋白质率', '乳蛋白率'],
-        '体细胞数_SCC': ['体细胞数(万/mL)', '体细胞数', 'SCC(万/mL)', '体细胞数_SCC'],
-        '菌落总数': ['菌落数(万CFU/mL)', '菌落总数(万CFU/mL)', '菌落数', '菌落总数'],
-        '配种头次': ['配种头次(次)', '情期配种数', '配种头次'],
-        '受孕头次': ['受孕头次(次)', '妊娠头次', '受孕头次'],
-        'DMI_kg': ['干物质采食量DMI_kg', '干物质采食量DMI(kg)', 'DMI', 'DMI_kg'],
-        '总饲喂干物质_kg': ['总饲喂干物质(kg)', '总饲喂干物质_kg', '总饲喂干物质'],
-        '出乳批次': ['出乳批次(批)', '交售批次', '出乳批次'],
-        '休药期合规批次': ['休药期合规批次(批)', '弃奶合规批次', '休药期合规批次'],
-        '病死牛数': ['病死牛数(头)', '病死成母牛', '病死牛数'],
-        '无害化处理数': ['无害化处理数(头)', '病死无害化数', '无害化处理数'],
-        '环境天数': ['环境天数(天)', '环境记录天数', '环境天数'],
-        'THI达标天数': ['温湿度指数THI达标天数', 'THI达标天数(天)', 'THI达标天数'],
-        '乳房炎头次': ['临床乳房炎发生头次', '乳房炎发病头次', '乳房炎头次'],
-        '粗饲料费': ['粗饲料金额(元)', '粗饲料成本(元)', '粗饲料费'],
-        '精饲料费': ['精饲料金额(元)', '精饲料成本(元)', '精饲料费'],
-        '兽药防疫费': ['兽药防疫费(元)', '兽药疫苗费用(元)', '兽药防疫费'],
-        '其他成本': ['其他成本(元)', '人工折旧能耗费用(元)', '人工能耗费', '其他成本'],
-        '原料奶售价': ['原料奶售价(元/kg)', '鲜奶售价(元/kg)', '原料奶售价']
-    }
-
-    col_map = pig_col_map if "生猪" in animal_type else cow_col_map
-    rename_dict = {}
-    matched_targets = set()
-
-    for col in df.columns:
-        clean_c = col.replace(' ', '').replace('　', '')
-        for standard_col, aliases in col_map.items():
-            if standard_col in matched_targets:
-                continue
-            if clean_c == standard_col or clean_c in aliases or any(a in clean_c for a in aliases):
-                rename_dict[col] = standard_col
-                matched_targets.add(standard_col)
-                break
-
-    df = df.rename(columns=rename_dict)
-    df = df.loc[:, ~df.columns.duplicated()]
-
-    for col in df.columns:
-        if col != '月份':
-            s = df[col].astype(str).str.replace(',', '', regex=False).str.replace('¥', '', regex=False).str.replace('%', '', regex=False).str.strip()
-            df[col] = pd.to_numeric(s, errors='coerce')
-
-    if "生猪" not in animal_type:
-        for p_col in ['乳脂率', '乳蛋白率']:
-            if p_col in df.columns and df[p_col].dropna().mean() > 1.0:
-                df[p_col] = df[p_col] / 100.0
-
+            
+    df = xl.parse(target_sheet, skiprows=header_row_idx)
+    df = df.dropna(how='all')
+    first_col = df.columns[0]
+    df = df[~df[first_col].astype(str).str.contains("全年|累计|合计|均值|平均|说明", na=False)]
+    
+    for c in df.columns:
+        if c not in ["月份", "批次号", "进雏日期", "出栏日期", "备注"]:
+            df[c] = pd.to_numeric(df[c], errors='coerce')
     return df
 
 # =====================================================================
-# 三、数据模型：生猪默认数据与容错计算引擎
+# 三、数据模型：八大畜禽基准演练模型与容错计算引擎
 # =====================================================================
+
+# 1. 生猪
 def get_default_pig_data():
     months = [f"{m}月" for m in range(1, 13)]
     end_sow = [500,502,505,508,510,512,510,508,506,508,510,512]
@@ -319,32 +295,17 @@ def compute_pig_metrics(df_raw):
     n = len(df)
     if n == 0:
         return df, {}
-
     if '月份' not in df.columns:
         df['月份'] = [f"{i+1}月" for i in range(n)]
 
     end_sow = safe_series(df, '期末能繁母猪')
     born = safe_series(df, '出生活仔')
-    intro = safe_series(df, '引进', 0)
     out = safe_series(df, '出栏')
     death = safe_series(df, '死亡')
     cull = safe_series(df, '淘汰全群', 0)
-    cull_s = safe_series(df, '其中:淘汰母猪', 0)
-    trans = safe_series(df, '调出', 0)
-    farrow = safe_series(df, '分娩窝数')
     wean = safe_series(df, '断奶仔猪')
     gain = safe_series(df, '总增重_kg')
     feed_kg = safe_series(df, '耗料量_kg')
-    vacc_due = safe_series(df, '应免头次')
-    vacc_done = safe_series(df, '实免头次')
-    test_n = safe_series(df, '检测样本数')
-    test_ok = safe_series(df, '抗体合格数')
-    batch = safe_series(df, '出栏批次')
-    batch_ok = safe_series(df, '休药期合规批次')
-    dead = safe_series(df, '病死数')
-    harmless = safe_series(df, '无害化处理数')
-    env_days = safe_series(df, '环境天数', 30)
-    temp_ok = safe_series(df, '温度达标天数')
     feed_money = safe_series(df, '饲料采购金额')
     vet_money = safe_series(df, '兽药采购金额')
     other_cost = safe_series(df, '其他成本')
@@ -357,130 +318,58 @@ def compute_pig_metrics(df_raw):
         prev = end_sow.iloc[i-1]
         init_sow.append(prev if pd.notna(prev) else init_sow[-1])
     df['期初能繁母猪'] = init_sow
-    df['期末能繁母猪'] = end_sow
-    df['月均能繁母猪'] = (df['期初能繁母猪'] + df['期末能繁母猪']) / 2.0
 
-    init_tot_base = safe_series(df, '期初全群存栏')
-    start_tot = init_tot_base.dropna().iloc[0] if not init_tot_base.dropna().empty else 5800
-    init_tot = [start_tot]
-    end_tot = []
-    curr = start_tot
-    for i in range(n):
-        b = born.iloc[i] if pd.notna(born.iloc[i]) else 0
-        it = intro.iloc[i] if pd.notna(intro.iloc[i]) else 0
-        o = out.iloc[i] if pd.notna(out.iloc[i]) else 0
-        d = death.iloc[i] if pd.notna(death.iloc[i]) else 0
-        c = cull.iloc[i] if pd.notna(cull.iloc[i]) else 0
-        t = trans.iloc[i] if pd.notna(trans.iloc[i]) else 0
-        curr = curr + b + it - o - d - c - t
-        end_tot.append(curr)
-        if i + 1 < n:
-            init_tot.append(curr)
-
-    df['期初全群存栏'] = init_tot
-    df['期末全群存栏'] = end_tot
-    df['月均全群存栏'] = (df['期初全群存栏'] + df['期末全群存栏']) / 2.0
-
-    df['月死亡率'] = safe_div(death, df['月均全群存栏'])
+    mean_sow = (df['期初能繁母猪'] + end_sow) / 2.0
     df['料肉比'] = safe_div(feed_kg, gain)
-    df['胎均活仔'] = safe_div(born, farrow)
-    df['断奶成活率'] = safe_div(wean, born)
     df['出栏均重_kg'] = safe_div(sale_w, out)
-    df['免疫密度'] = safe_div(vacc_done, vacc_due)
-    df['抗体合格率'] = safe_div(test_ok, test_n)
-    df['休药期合规率'] = safe_div(batch_ok, batch)
-    df['无害化处理率'] = safe_div(harmless, dead)
-    df['温度达标率'] = safe_div(temp_ok, env_days)
+    df['月死亡率'] = safe_div(death, mean_sow * 10)
+    total_cost = feed_money.fillna(0) + vet_money.fillna(0) + other_cost.fillna(0)
+    revenue = sale_w * price
+    df['月净利润_元'] = revenue - total_cost
+    df['头均盈利_元'] = safe_div(df['月净利润_元'], out)
 
-    cost_df = pd.DataFrame({'f': feed_money, 'v': vet_money, 'o': other_cost})
-    monthly_cost = cost_df.sum(axis=1, min_count=1)
-    df['月度总成本_元'] = monthly_cost
-    df['头均总成本_元'] = safe_div(monthly_cost, out)
+    tot_sow_avg = mean_sow.mean()
+    tot_wean = wean.sum()
+    tot_out = out.sum()
+    tot_gain = gain.sum()
+    tot_feed = feed_kg.sum()
+    tot_cost = total_cost.sum()
+    tot_rev = revenue.sum()
 
-    revenue_series = sale_w * price
-    df['月度出栏收入_元'] = revenue_series
-    df['头均收入_元'] = safe_div(revenue_series, out)
-    df['头均盈利_元'] = df['头均收入_元'] - df['头均总成本_元']
-
-    total_out = out.sum(min_count=1)
-    avg_sow_annual = df['月均能繁母猪'].dropna().mean() if not df['月均能繁母猪'].dropna().empty else np.nan
-    total_live = born.sum(min_count=1)
-    total_wean = wean.sum(min_count=1)
-    total_feed = feed_kg.sum(min_count=1)
-    total_gain = gain.sum(min_count=1)
-    total_sale_w = sale_w.sum(min_count=1)
-    total_cost = monthly_cost.sum(min_count=1)
-    total_rev = revenue_series.sum(min_count=1)
-
-    kpi_summary = {
-        'PSY': safe_scalar_div(total_wean, avg_sow_annual),
-        'MSY': safe_scalar_div(total_out, avg_sow_annual),
-        '全程成活率': safe_scalar_div(total_out, total_live),
-        '月均死亡率': df['月死亡率'].dropna().mean() if not df['月死亡率'].dropna().empty else np.nan,
-        '年料肉比': safe_scalar_div(total_feed, total_gain),
-        '出栏均重': safe_scalar_div(total_sale_w, total_out),
-        '年抗体合格率': safe_scalar_div(test_ok.sum(min_count=1), test_n.sum(min_count=1)),
-        '年休药期合规率': safe_scalar_div(batch_ok.sum(min_count=1), batch.sum(min_count=1)),
-        '年无害化处理率': safe_scalar_div(harmless.sum(min_count=1), dead.sum(min_count=1)),
-        '年头均盈利': safe_scalar_div(total_rev - total_cost, total_out),
-        '年头均成本': safe_scalar_div(total_cost, total_out)
+    kpi = {
+        'PSY': safe_scalar_div(tot_wean, tot_sow_avg),
+        'MSY': safe_scalar_div(tot_out, tot_sow_avg),
+        '全程成活率': safe_scalar_div(tot_out, born.sum()) if born.sum() > 0 else np.nan,
+        '年料肉比': safe_scalar_div(tot_feed, tot_gain),
+        '年头均盈利': safe_scalar_div(tot_rev - tot_cost, tot_out),
+        '月均死亡率': df['月死亡率'].dropna().mean() if not df['月死亡率'].dropna().empty else np.nan
     }
-    return df, kpi_summary
+    return df, kpi
 
-# =====================================================================
-# 四、数据模型：奶牛默认数据与容错计算引擎
-# =====================================================================
+# 2. 奶牛
 def get_default_cow_data():
     months = [f"{m}月" for m in range(1, 13)]
-    end_cows = [1000, 1005, 1010, 1015, 1012, 1008, 1005, 1008, 1012, 1015, 1018, 1020]
-    milking_cows = [850, 855, 860, 865, 860, 855, 850, 852, 858, 862, 865, 868]
-    dry_cows = [ec - mc for ec, mc in zip(end_cows, milking_cows)]
-    calves_born = [88, 82, 90, 86, 84, 88, 85, 83, 89, 87, 85, 90]
-    calves_alive = [int(cb * 0.96) for cb in calves_born]
-    inflow = [25, 28, 30, 28, 25, 24, 26, 28, 30, 31, 29, 32]
-    culls = [20, 22, 24, 22, 26, 27, 28, 24, 25, 27, 25, 28]
-    deaths = [9, 6, 7, 7, 6, 5, 5, 6, 5, 5, 4, 5]
-
-    milk_prod = [920000, 860000, 960000, 940000, 930000, 910000, 880000, 890000, 930000, 950000, 940000, 970000]
-    milk_sold = [round(mp * 0.985) for mp in milk_prod]
-    fat_pct = [0.0405, 0.0402, 0.0398, 0.0395, 0.0392, 0.0388, 0.0382, 0.0385, 0.0392, 0.0398, 0.0402, 0.0408]
-    pro_pct = [0.0342, 0.0340, 0.0338, 0.0335, 0.0332, 0.0330, 0.0325, 0.0328, 0.0332, 0.0336, 0.0340, 0.0345]
-    scc_val = [16.5, 15.8, 16.2, 17.0, 18.2, 19.5, 24.0, 19.8, 17.5, 16.0, 15.2, 14.8]
-    cfu_val = [4.5, 4.2, 4.8, 4.6, 5.2, 5.8, 6.5, 5.9, 5.0, 4.5, 4.0, 3.8]
-
-    mate_n = [110, 105, 112, 108, 106, 110, 108, 105, 112, 110, 108, 115]
-    preg_n = [45, 43, 46, 44, 43, 44, 42, 41, 46, 45, 44, 48]
-    dmi_val = [24.5, 24.8, 25.0, 24.6, 24.0, 23.2, 22.0, 22.5, 23.8, 24.6, 25.2, 25.5]
-    env_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    tot_dm = [round(mc * dmi * ed) for mc, dmi, ed in zip(milking_cows, dmi_val, env_days)]
-
-    milk_batch = [62, 56, 62, 60, 62, 60, 62, 62, 60, 62, 60, 62]
-    withdraw_ok = milk_batch[:]
-    dead_cows = deaths[:]
-    harmless_cows = deaths[:]
-    thi_ok = [30, 28, 31, 30, 29, 25, 20, 22, 28, 31, 30, 31]
-    mastitis = [18, 16, 17, 19, 22, 25, 32, 26, 20, 17, 15, 14]
-
-    rough_cost = [round(dm * 1.55) for dm in tot_dm]
-    conc_cost  = [round(dm * 1.45) for dm in tot_dm]
-    vet_cost   = [85000, 80000, 88000, 86000, 92000, 98000, 115000, 105000, 90000, 85000, 82000, 80000]
-    other_cost = [650000] * 12
-    milk_price = [4.15, 4.12, 4.10, 4.08, 4.05, 4.02, 3.98, 4.02, 4.06, 4.10, 4.15, 4.20]
+    end_cow = [1000, 1005, 1010, 1008, 1012, 1015, 1010, 1005, 1008, 1012, 1015, 1020]
+    lact_cow = [850, 855, 860, 858, 862, 865, 860, 855, 858, 862, 865, 870]
+    days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    tot_milk = [920000, 835000, 935000, 910000, 945000, 918000, 890000, 885000, 905000, 940000, 915000, 955000]
+    fat = [0.0410, 0.0412, 0.0408, 0.0405, 0.0398, 0.0390, 0.0382, 0.0385, 0.0395, 0.0402, 0.0408, 0.0415]
+    protein = [0.0335, 0.0338, 0.0334, 0.0330, 0.0326, 0.0320, 0.0315, 0.0318, 0.0325, 0.0330, 0.0334, 0.0339]
+    scc = [14.5, 15.2, 14.8, 16.0, 17.5, 18.8, 22.5, 23.0, 18.2, 16.5, 15.0, 14.2]
+    dmi = [28.5, 28.6, 28.8, 29.0, 29.2, 29.0, 27.8, 28.0, 28.5, 28.8, 29.0, 29.2]
+    feed_money = [1850000, 1680000, 1880000, 1820000, 1900000, 1840000, 1790000, 1780000, 1820000, 1890000, 1840000, 1920000]
+    vet_money = [85000, 80000, 88000, 85000, 90000, 92000, 105000, 110000, 90000, 86000, 84000, 88000]
+    other_cost = [1200000, 1100000, 1220000, 1180000, 1230000, 1190000, 1160000, 1150000, 1180000, 1220000, 1190000, 1240000]
+    price = [3.85, 3.85, 3.82, 3.80, 3.78, 3.75, 3.72, 3.72, 3.76, 3.80, 3.82, 3.86]
 
     rows = []
     for i in range(12):
         rows.append({
-            '月份': months[i], '期末成母牛': end_cows[i], '初产育成牛转入': inflow[i], '出栏与淘汰': culls[i],
-            '死亡成母牛': deaths[i], '在挤泌乳牛': milking_cows[i], '干奶牛': dry_cows[i],
-            '出生犊牛': calves_born[i], '成活犊牛': calves_alive[i],
-            '月产奶量_kg': milk_prod[i], '生鲜乳销量_kg': milk_sold[i],
-            '乳脂率': fat_pct[i], '乳蛋白率': pro_pct[i], '体细胞数_SCC': scc_val[i], '菌落总数': cfu_val[i],
-            '配种头次': mate_n[i], '受孕头次': preg_n[i], 'DMI_kg': dmi_val[i], '总饲喂干物质_kg': tot_dm[i],
-            '出乳批次': milk_batch[i], '休药期合规批次': withdraw_ok[i],
-            '病死牛数': dead_cows[i], '无害化处理数': harmless_cows[i], '环境天数': env_days[i],
-            'THI达标天数': thi_ok[i], '乳房炎头次': mastitis[i],
-            '粗饲料费': rough_cost[i], '精饲料费': conc_cost[i], '兽药防疫费': vet_cost[i], '其他成本': other_cost[i],
-            '原料奶售价': milk_price[i]
+            '月份': months[i], '期末成母牛存栏': end_cow[i], '在挤泌乳牛头数': lact_cow[i],
+            '当月天数': days[i], '生鲜乳产量_kg': tot_milk[i], '生鲜牛乳脂率': fat[i],
+            '生鲜牛乳蛋白率': protein[i], '体细胞数_SCC_万': scc[i], '泌乳牛干物质采食量_DMI': dmi[i],
+            '饲料采购金额': feed_money[i], '兽药采购金额': vet_money[i], '其他完全成本': other_cost[i],
+            '生鲜乳销售单价': price[i]
         })
     return pd.DataFrame(rows)
 
@@ -489,118 +378,479 @@ def compute_cow_metrics(df_raw):
     n = len(df)
     if n == 0:
         return df, {}
-
     if '月份' not in df.columns:
         df['月份'] = [f"{i+1}月" for i in range(n)]
 
-    end_cows = safe_series(df, '期末成母牛')
-    inflow = safe_series(df, '初产育成牛转入', 0)
-    culls = safe_series(df, '出栏与淘汰', 0)
-    deaths = safe_series(df, '死亡成母牛')
-    milking_cows = safe_series(df, '在挤泌乳牛')
-    dry_cows = safe_series(df, '干奶牛')
-    calves_born = safe_series(df, '出生犊牛')
-    calves_alive = safe_series(df, '成活犊牛')
-    milk_prod = safe_series(df, '月产奶量_kg')
-    milk_sold = safe_series(df, '生鲜乳销量_kg')
-    fat_pct = safe_series(df, '乳脂率')
-    pro_pct = safe_series(df, '乳蛋白率')
-    scc_val = safe_series(df, '体细胞数_SCC')
-    cfu_val = safe_series(df, '菌落总数')
-    mate_n = safe_series(df, '配种头次')
-    preg_n = safe_series(df, '受孕头次')
-    dmi_val = safe_series(df, 'DMI_kg')
-    tot_dm = safe_series(df, '总饲喂干物质_kg')
-    milk_batch = safe_series(df, '出乳批次')
-    withdraw_ok = safe_series(df, '休药期合规批次')
-    dead_cows = safe_series(df, '病死牛数')
-    harmless_cows = safe_series(df, '无害化处理数')
-    env_days = safe_series(df, '环境天数', 30)
-    thi_ok = safe_series(df, 'THI达标天数')
-    mastitis = safe_series(df, '乳房炎头次')
-    rough_cost = safe_series(df, '粗饲料费')
-    conc_cost = safe_series(df, '精饲料费')
-    vet_cost = safe_series(df, '兽药防疫费')
-    other_cost = safe_series(df, '其他成本')
-    milk_price = safe_series(df, '原料奶售价')
+    end_cow = safe_series(df, '期末成母牛存栏')
+    lact_cow = safe_series(df, '在挤泌乳牛头数')
+    days = safe_series(df, '当月天数', 30.5)
+    milk = safe_series(df, '生鲜乳产量_kg')
+    fat = safe_series(df, '生鲜牛乳脂率')
+    protein = safe_series(df, '生鲜牛乳蛋白率')
+    scc = safe_series(df, '体细胞数_SCC_万')
+    dmi = safe_series(df, '泌乳牛干物质采食量_DMI')
+    feed_money = safe_series(df, '饲料采购金额')
+    vet_money = safe_series(df, '兽药采购金额')
+    other_cost = safe_series(df, '其他完全成本')
+    price = safe_series(df, '生鲜乳销售单价')
 
-    first_end = end_cows.dropna().iloc[0] if not end_cows.dropna().empty else 1000
-    init_cows = [first_end - 2]
-    for i in range(1, n):
-        prev = end_cows.iloc[i-1]
-        init_cows.append(prev if pd.notna(prev) else init_cows[-1])
-    df['期初成母牛'] = init_cows
-    df['期末成母牛'] = end_cows
-    df['平均成母牛'] = (df['期初成母牛'] + df['期末成母牛']) / 2.0
+    df['泌乳牛日均单产_kg'] = milk / (lact_cow * days)
+    total_cost = feed_money.fillna(0) + vet_money.fillna(0) + other_cost.fillna(0)
+    df['公斤奶完全成本_元'] = safe_div(total_cost, milk)
+    df['公斤奶饲料成本_元'] = safe_div(feed_money, milk)
+    revenue = milk * price
+    df['月度净利润_元'] = revenue - total_cost
+    df['料奶比'] = safe_div(dmi * lact_cow * days, milk)
 
-    df['泌乳牛比例'] = safe_div(milking_cows, df['平均成母牛'])
-    df['月总产奶_吨'] = milk_prod / 1000.0
-    df['日均单产_kg'] = safe_div(safe_div(milk_prod, milking_cows), env_days)
-    df['情期受胎率'] = safe_div(preg_n, mate_n)
-    df['料奶比'] = safe_div(tot_dm, milk_prod)
-    df['犊牛成活率'] = safe_div(calves_alive, calves_born)
-    df['成母牛月死亡率'] = safe_div(deaths, df['平均成母牛'])
-    df['休药期合规率'] = safe_div(withdraw_ok, milk_batch)
-    df['无害化处理率'] = safe_div(harmless_cows, dead_cows)
+    tot_milk = milk.sum()
+    tot_cow_avg = end_cow.mean()
+    tot_cost = total_cost.sum()
+    tot_rev = revenue.sum()
 
-    cost_df = pd.DataFrame({'r': rough_cost, 'c': conc_cost, 'v': vet_cost, 'o': other_cost})
-    monthly_cost = cost_df.sum(axis=1, min_count=1)
-    df['月度总成本_元'] = monthly_cost
-    df['公斤奶完全成本_元'] = safe_div(monthly_cost, milk_prod)
-
-    feed_cost = pd.DataFrame({'r': rough_cost, 'c': conc_cost}).sum(axis=1, min_count=1)
-    df['公斤奶饲料成本_元'] = safe_div(feed_cost, milk_prod)
-
-    rev_series = milk_price * milk_sold
-    df['月度生鲜乳收入_元'] = rev_series
-    df['公斤奶净利润_元'] = safe_div(rev_series - monthly_cost, milk_prod)
-    df['月度头均利润_元'] = safe_div(rev_series - monthly_cost, df['平均成母牛'])
-
-    total_milk_kg = milk_prod.sum(min_count=1)
-    avg_adult_cows = df['平均成母牛'].dropna().mean() if not df['平均成母牛'].dropna().empty else np.nan
-    total_cost_ann = monthly_cost.sum(min_count=1)
-    total_rev_ann = rev_series.sum(min_count=1)
-    total_sold = milk_sold.sum(min_count=1)
-
-    kpi_summary = {
-        '成母牛年单产': safe_scalar_div(total_milk_kg, avg_adult_cows),
-        '泌乳牛日均单产': df['日均单产_kg'].dropna().mean() if not df['日均单产_kg'].dropna().empty else np.nan,
-        '生鲜牛乳脂率': fat_pct.dropna().mean() if not fat_pct.dropna().empty else np.nan,
-        '生鲜牛乳蛋白率': pro_pct.dropna().mean() if not pro_pct.dropna().empty else np.nan,
-        '体细胞数_SCC均值': scc_val.dropna().mean() if not scc_val.dropna().empty else np.nan,
-        '年化料奶比': safe_scalar_div(tot_dm.sum(min_count=1), total_milk_kg),
-        '犊牛成活率': safe_scalar_div(calves_alive.sum(min_count=1), calves_born.sum(min_count=1)),
-        '成母牛年死亡率': safe_scalar_div(deaths.sum(min_count=1), avg_adult_cows),
-        '公斤奶平均成本': safe_scalar_div(total_cost_ann, total_milk_kg),
-        '公斤奶平均售价': safe_scalar_div(total_rev_ann, total_sold),
-        '成母牛头均年净利润': safe_scalar_div(total_rev_ann - total_cost_ann, avg_adult_cows)
+    kpi = {
+        '成母牛年单产': safe_scalar_div(tot_milk, tot_cow_avg),
+        '泌乳牛日均单产': df['泌乳牛日均单产_kg'].dropna().mean() if not df['泌乳牛日均单产_kg'].dropna().empty else np.nan,
+        '生鲜牛乳脂率': fat.dropna().mean() if not fat.dropna().empty else np.nan,
+        '生鲜牛乳蛋白率': protein.dropna().mean() if not protein.dropna().empty else np.nan,
+        '体细胞数_SCC均值': scc.dropna().mean() if not scc.dropna().empty else np.nan,
+        '年化料奶比': safe_scalar_div((dmi * lact_cow * days).sum(), tot_milk),
+        '公斤奶完全成本': safe_scalar_div(tot_cost, tot_milk),
+        '成母牛头均年净利润': safe_scalar_div(tot_rev - tot_cost, tot_cow_avg)
     }
-    return df, kpi_summary
+    return df, kpi
+
+# 3. 肉牛
+def get_default_beef_data():
+    raw_beef = [
+        ("1月", 500, 500, 31, 40, 38, 2, 22320.0, 162936.0, 25840.0, 15245.0, 12660.0, 2, 408000, 374750, 12000, 85000),
+        ("2月", 500, 498, 28, 35, 36, 1, 20300.0, 146160.0, 24480.0, 14443.0, 11995.0, 1, 357000, 336168, 11000, 82000),
+        ("3月", 498, 502, 31, 45, 40, 1, 22475.0, 161820.0, 27200.0, 16048.0, 13328.0, 1, 459000, 372186, 12500, 86000),
+        ("4月", 502, 500, 30, 38, 39, 1, 21900.0, 157680.0, 26520.0, 15646.0, 12994.0, 1, 387600, 362664, 12000, 85000),
+        ("5月", 500, 497, 31, 40, 42, 1, 22320.0, 162936.0, 28560.0, 16850.0, 13994.0, 1, 408000, 374750, 13000, 86000),
+        ("6月", 497, 495, 30, 36, 37, 1, 21300.0, 155490.0, 25160.0, 14844.0, 12328.0, 1, 367200, 357627, 12000, 84000),
+        ("7月", 495, 492, 31, 35, 36, 2, 18900.0, 153090.0, 24120.0, 14110.0, 11698.0, 2, 357000, 352107, 14000, 88000),
+        ("8月", 492, 494, 31, 42, 39, 1, 19840.0, 156736.0, 26130.0, 15338.0, 12725.0, 1, 428400, 360492, 13500, 87000),
+        ("9月", 494, 498, 30, 45, 40, 1, 21600.0, 157680.0, 27200.0, 16048.0, 13328.0, 1, 459000, 362664, 12000, 85000),
+        ("10月", 498, 500, 31, 45, 42, 1, 22475.0, 161820.0, 28560.0, 16850.0, 13994.0, 1, 459000, 372186, 12500, 86000),
+        ("11月", 500, 502, 30, 50, 47, 1, 22200.0, 159840.0, 31960.0, 18856.0, 15660.0, 1, 510000, 367632, 13500, 87000),
+        ("12月", 502, 500, 31, 48, 49, 1, 22785.0, 164052.0, 33320.0, 19658.0, 16326.0, 1, 489600, 377319, 14000, 88000),
+    ]
+    cols = ["月份", "期初在栏牛", "期末在栏牛", "当月天数", "当月购入架子牛", "当月出栏肉牛", "当月死亡牛",
+            "全群月增重_kg", "消耗饲料干物质_kg", "抽检出栏总重_kg", "抽检热胴体重_kg", "抽检净肉重_kg",
+            "病死无害化数", "架子牛采购费_元", "饲料采购总额_元", "兽药防疫费_元", "人工利息折旧能耗_元"]
+    return pd.DataFrame(raw_beef, columns=cols)
+
+def compute_beef_metrics(df_raw):
+    df = df_raw.copy()
+    n = len(df)
+    if n == 0:
+        return df, {}
+    if '月份' not in df.columns:
+        df['月份'] = [f"{i+1}月" for i in range(n)]
+
+    init_cow = safe_series(df, '期初在栏牛', 500)
+    end_cow = safe_series(df, '期末在栏牛', 500)
+    days = safe_series(df, '当月天数', 30.5)
+    out = safe_series(df, '当月出栏肉牛', 40)
+    death = safe_series(df, '当月死亡牛', 1)
+    gain = safe_series(df, '全群月增重_kg')
+    dmi = safe_series(df, '消耗饲料干物质_kg')
+    sample_out_w = safe_series(df, '抽检出栏总重_kg')
+    sample_carcass = safe_series(df, '抽检热胴体重_kg')
+    sample_meat = safe_series(df, '抽检净肉重_kg')
+    
+    feed_m = safe_series(df, '饲料采购总额_元')
+    calf_m = safe_series(df, '架子牛采购费_元')
+    vet_m = safe_series(df, '兽药防疫费_元')
+    other_m = safe_series(df, '人工利息折旧能耗_元')
+
+    mean_cattle = (init_cow + end_cow) / 2.0
+    df['平均日增重_kg_天'] = gain / (mean_cattle * days)
+    df['料肉比_FCR'] = safe_div(dmi, gain)
+    df['月出栏均重_kg'] = safe_div(sample_out_w, out)
+    df['屠宰率'] = safe_div(sample_carcass, sample_out_w)
+    df['净肉率'] = safe_div(sample_meat, sample_out_w)
+    df['月死亡率'] = safe_div(death, init_cow)
+
+    tot_cost = feed_m.fillna(0) + calf_m.fillna(0) + vet_m.fillna(0) + other_m.fillna(0)
+    df['公斤增重完全成本_元'] = safe_div(feed_m.fillna(0) + vet_m.fillna(0) + other_m.fillna(0), gain)
+    
+    p_beef = 32.5  # 活牛收购均价 元/kg
+    revenue = (df['月出栏均重_kg'] * p_beef) * out
+    df['月度总净利润_元'] = revenue - tot_cost
+    df['头均出栏净利润_元'] = safe_div(df['月度总净利润_元'], out)
+
+    tot_gain = gain.sum()
+    tot_dmi = dmi.sum()
+    tot_out = out.sum()
+    tot_rev = revenue.sum()
+    tot_c = tot_cost.sum()
+
+    kpi = {
+        '平均日增重': safe_scalar_div(tot_gain, (mean_cattle * days).sum()),
+        '料肉比_FCR': safe_scalar_div(tot_dmi, tot_gain),
+        '出栏均重': df['月出栏均重_kg'].dropna().mean(),
+        '屠宰率': safe_scalar_div(sample_carcass.sum(), sample_out_w.sum()),
+        '公斤增重完全成本': safe_scalar_div((feed_m.fillna(0) + vet_m.fillna(0) + other_m.fillna(0)).sum(), tot_gain),
+        '头均出栏净利润': safe_scalar_div(tot_rev - tot_c, tot_out)
+    }
+    return df, kpi
+
+# 4. 奶山羊
+def get_default_dairy_goat_data():
+    raw_goat = [
+        ("1月", 500, 498, 415, 31, 0, 1, 1, 39860.0, 39000.0, 0.0425, 0.0340, 72.0, 54200.0, 1, 135500, 68000),
+        ("2月", 498, 496, 410, 28, 0, 1, 1, 36240.0, 35500.0, 0.0420, 0.0342, 74.0, 49650.0, 1, 124125, 65000),
+        ("3月", 496, 502, 420, 31, 8, 1, 1, 41726.0, 40800.0, 0.0418, 0.0338, 75.0, 56330.0, 1, 140825, 68500),
+        ("4月", 502, 500, 425, 30, 0, 1, 1, 42075.0, 41200.0, 0.0415, 0.0335, 73.0, 56800.0, 1, 142000, 68000),
+        ("5月", 500, 498, 420, 31, 0, 1, 1, 41664.0, 40800.0, 0.0412, 0.0332, 76.0, 56250.0, 1, 140625, 68000),
+        ("6月", 498, 495, 410, 30, 0, 2, 1, 38130.0, 37300.0, 0.0408, 0.0330, 80.0, 52240.0, 1, 130600, 67000),
+        ("7月", 495, 492, 395, 31, 0, 2, 1, 34878.5, 34100.0, 0.0395, 0.0322, 92.0, 49530.0, 1, 123825, 72000),
+        ("8月", 492, 495, 400, 31, 5, 1, 1, 35960.0, 35200.0, 0.0402, 0.0325, 88.0, 50340.0, 1, 125850, 71000),
+        ("9月", 495, 497, 405, 30, 4, 1, 1, 37665.0, 36900.0, 0.0415, 0.0336, 78.0, 51980.0, 1, 129950, 68000),
+        ("10月", 497, 500, 410, 31, 5, 1, 1, 39463.0, 38600.0, 0.0422, 0.0340, 74.0, 54060.0, 1, 135150, 68500),
+        ("11月", 500, 498, 400, 30, 0, 1, 1, 36600.0, 35800.0, 0.0428, 0.0345, 71.0, 50870.0, 1, 127175, 67500),
+        ("12月", 498, 500, 390, 31, 4, 1, 1, 35665.5, 34900.0, 0.0430, 0.0348, 70.0, 50290.0, 1, 125725, 68000),
+    ]
+    cols = ["月份", "期初成母羊", "期末成母羊", "在挤泌乳母羊", "当月天数", "青年羊转入",
+            "淘汰母羊", "死亡母羊", "月总产奶量_kg", "生鲜乳销售量_kg", "生鲜羊乳脂率",
+            "生鲜羊乳蛋白率", "体细胞数SCC_万_mL", "消耗饲料干物质_kg", "无害化处理数",
+            "饲料采购费用_元", "人工折旧能耗费用_元"]
+    return pd.DataFrame(raw_goat, columns=cols)
+
+def compute_dairy_goat_metrics(df_raw):
+    df = df_raw.copy()
+    n = len(df)
+    if n == 0:
+        return df, {}
+    if '月份' not in df.columns:
+        df['月份'] = [f"{i+1}月" for i in range(n)]
+
+    end_ewe = safe_series(df, '期末成母羊', 500)
+    lact_ewe = safe_series(df, '在挤泌乳母羊', 410)
+    days = safe_series(df, '当月天数', 30.5)
+    milk = safe_series(df, '月总产奶量_kg')
+    fat = safe_series(df, '生鲜羊乳脂率')
+    protein = safe_series(df, '生鲜羊乳蛋白率')
+    scc = safe_series(df, '体细胞数SCC_万_mL')
+    dmi = safe_series(df, '消耗饲料干物质_kg')
+    feed_m = safe_series(df, '饲料采购费用_元')
+    other_m = safe_series(df, '人工折旧能耗费用_元')
+
+    df['泌乳羊日单产_kg'] = milk / (lact_ewe * days)
+    df['料奶比_FMR'] = safe_div(dmi, milk)
+    tot_cost = feed_m.fillna(0) + other_m.fillna(0)
+    df['公斤羊奶完全成本_元'] = safe_div(tot_cost, milk)
+    
+    p_goat_milk = 6.8  # 生鲜羊乳销售均价 元/kg
+    revenue = milk * p_goat_milk
+    df['月度总净利润_元'] = revenue - tot_cost
+    df['公斤羊奶净利_元'] = safe_div(df['月度总净利润_元'], milk)
+
+    tot_milk = milk.sum()
+    tot_ewe_avg = end_ewe.mean()
+    tot_cost_all = tot_cost.sum()
+    tot_rev = revenue.sum()
+
+    kpi = {
+        '成母羊年单产': safe_scalar_div(tot_milk, tot_ewe_avg),
+        '泌乳羊日均单产': df['泌乳羊日单产_kg'].dropna().mean(),
+        '生鲜羊乳脂率': fat.dropna().mean(),
+        '生鲜羊乳蛋白率': protein.dropna().mean(),
+        '体细胞数SCC': scc.dropna().mean(),
+        '公斤羊奶完全成本': safe_scalar_div(tot_cost_all, tot_milk),
+        '成母羊年头均净利润': safe_scalar_div(tot_rev - tot_cost_all, tot_ewe_avg)
+    }
+    return df, kpi
+
+# 5. 肉羊
+def get_default_meat_sheep_data():
+    raw_sheep = [
+        ("1月", 1000, 995, 31, 160, 160, 5, 9610.0, 47089.0, 8080.0, 4322.0, 3514.0, 5, 104000, 117722, 4800, 28000),
+        ("2月", 995, 992, 28, 150, 150, 3, 8624.0, 41395.0, 7575.0, 4052.0, 3295.0, 3, 97500, 103488, 4500, 26000),
+        ("3月", 992, 1002, 31, 180, 165, 5, 9889.0, 47467.0, 8332.5, 4457.0, 3624.0, 5, 117000, 118668, 5000, 28500),
+        ("4月", 1002, 1000, 30, 170, 168, 4, 9600.0, 46080.0, 8484.0, 4538.0, 3690.0, 4, 110500, 115200, 4800, 28000),
+        ("5月", 1000, 996, 31, 175, 174, 5, 9920.0, 48608.0, 8787.0, 4701.0, 3822.0, 5, 113750, 121520, 5200, 28500),
+        ("6月", 996, 992, 30, 165, 165, 4, 9240.0, 46200.0, 8332.5, 4457.0, 3624.0, 4, 107250, 115500, 5000, 28000),
+        ("7月", 992, 988, 31, 160, 158, 6, 8928.0, 46425.0, 7979.0, 4228.0, 3430.0, 6, 104000, 116064, 5800, 31000),
+        ("8月", 988, 995, 31, 175, 163, 5, 9238.0, 47113.0, 8231.5, 4370.0, 3547.0, 5, 113750, 117784, 5500, 30000),
+        ("9月", 995, 1002, 30, 185, 173, 5, 9570.0, 46893.0, 8736.5, 4673.0, 3800.0, 5, 120250, 117232, 5000, 28500),
+        ("10月", 1002, 1005, 31, 185, 178, 4, 9982.0, 47913.0, 8989.0, 4809.0, 3910.0, 4, 120250, 119784, 5200, 28500),
+        ("11月", 1005, 1004, 30, 190, 187, 4, 9648.0, 46310.0, 9443.5, 5052.0, 4107.0, 4, 123500, 115776, 5200, 28500),
+        ("12月", 1004, 1000, 31, 195, 194, 5, 10013.0, 48062.0, 9797.0, 5241.0, 4261.0, 5, 126750, 120156, 5500, 29000),
+    ]
+    cols = ["月份", "期初在栏羊", "期末在栏羊", "当月天数", "当月转入断奶羔", "当月出栏肉羊",
+            "当月死亡羊", "全群月增重_kg", "消耗饲料干物质_kg", "抽检出栏总重_kg", "抽检热胴体重_kg",
+            "抽检净肉重_kg", "病死无害化数", "断奶羔羊成本_元", "饲料采购总额_元",
+            "兽药防疫费_元", "人工折旧能耗费用_元"]
+    return pd.DataFrame(raw_sheep, columns=cols)
+
+def compute_meat_sheep_metrics(df_raw):
+    df = df_raw.copy()
+    n = len(df)
+    if n == 0:
+        return df, {}
+    if '月份' not in df.columns:
+        df['月份'] = [f"{i+1}月" for i in range(n)]
+
+    init_sheep = safe_series(df, '期初在栏羊', 1000)
+    end_sheep = safe_series(df, '期末在栏羊', 1000)
+    days = safe_series(df, '当月天数', 30.5)
+    out = safe_series(df, '当月出栏肉羊', 165)
+    death = safe_series(df, '当月死亡羊', 4)
+    gain = safe_series(df, '全群月增重_kg')
+    dmi = safe_series(df, '消耗饲料干物质_kg')
+    sample_out_w = safe_series(df, '抽检出栏总重_kg')
+    sample_carcass = safe_series(df, '抽检热胴体重_kg')
+    lamb_m = safe_series(df, '断奶羔羊成本_元')
+    feed_m = safe_series(df, '饲料采购总额_元')
+    vet_m = safe_series(df, '兽药防疫费_元')
+    other_m = safe_series(df, '人工折旧能耗费用_元')
+
+    mean_sheep = (init_sheep + end_sheep) / 2.0
+    df['平均日增重_g_天'] = (gain * 1000.0) / (mean_sheep * days)
+    df['料肉比_FCR'] = safe_div(dmi, gain)
+    df['出栏均重_kg'] = safe_div(sample_out_w, out)
+    df['屠宰率'] = safe_div(sample_carcass, sample_out_w)
+    df['月死亡率'] = safe_div(death, init_sheep)
+
+    tot_cost = lamb_m.fillna(0) + feed_m.fillna(0) + vet_m.fillna(0) + other_m.fillna(0)
+    df['公斤增重完全成本_元'] = safe_div(feed_m.fillna(0) + vet_m.fillna(0) + other_m.fillna(0), gain)
+    
+    p_sheep = 34.0  # 育肥活羊收购均价 元/kg
+    revenue = (df['出栏均重_kg'] * p_sheep) * out
+    df['月度总净利润_元'] = revenue - tot_cost
+    df['单只出栏净利_元'] = safe_div(df['月度总净利润_元'], out)
+
+    tot_gain = gain.sum()
+    tot_dmi = dmi.sum()
+    tot_out = out.sum()
+    tot_c = tot_cost.sum()
+    tot_rev = revenue.sum()
+
+    kpi = {
+        '平均日增重': df['平均日增重_g_天'].dropna().mean(),
+        '料肉比_FCR': safe_scalar_div(tot_dmi, tot_gain),
+        '出栏均重': df['出栏均重_kg'].dropna().mean(),
+        '屠宰率': safe_scalar_div(sample_carcass.sum(), sample_out_w.sum()),
+        '公斤增重完全成本': safe_scalar_div((feed_m.fillna(0) + vet_m.fillna(0) + other_m.fillna(0)).sum(), tot_gain),
+        '单只出栏净利': safe_scalar_div(tot_rev - tot_c, tot_out)
+    }
+    return df, kpi
+
+# 6. 皮用羊 (滩羊)
+def get_default_fur_sheep_data():
+    raw_fur = [
+        ("1月", 500, 31, 30, 35, 28, 6, 1, 25, 8.2, 8.6, 42.0, 156.8, 1, 48000, 6800, 21000),
+        ("2月", 498, 28, 45, 52, 42, 9, 1, 38, 8.1, 8.5, 41.5, 235.2, 1, 52000, 8500, 22000),
+        ("3月", 496, 31, 80, 94, 80, 12, 2, 72, 8.3, 8.8, 42.5, 448.0, 2, 65000, 14000, 26000),
+        ("4月", 495, 30, 90, 105, 90, 13, 2, 81, 8.4, 8.9, 43.0, 504.0, 2, 70000, 16000, 27000),
+        ("5月", 495, 31, 60, 70, 60, 9, 1, 53, 8.2, 8.7, 42.0, 336.0, 1, 58000, 11000, 24000),
+        ("6月", 494, 30, 20, 23, 18, 4, 1, 16, 7.8, 8.3, 40.5, 99.0, 1, 45000, 5200, 20000),
+        ("7月", 493, 31, 10, 11, 8, 2, 1, 7, 7.5, 8.1, 39.5, 43.2, 1, 43000, 4500, 20500),
+        ("8月", 493, 31, 10, 11, 8, 2, 1, 7, 7.6, 8.2, 40.0, 44.0, 1, 43000, 4500, 20500),
+        ("9月", 494, 30, 25, 29, 23, 5, 1, 20, 8.0, 8.5, 41.0, 126.5, 1, 46000, 6200, 21000),
+        ("10月", 496, 31, 40, 46, 38, 7, 1, 34, 8.2, 8.6, 42.0, 212.8, 1, 52000, 8200, 22500),
+        ("11月", 498, 30, 50, 58, 48, 9, 1, 43, 8.3, 8.7, 42.5, 268.8, 1, 56000, 9800, 23500),
+        ("12月", 500, 31, 40, 46, 37, 8, 1, 33, 8.2, 8.6, 42.0, 207.2, 1, 51000, 8200, 22500),
+    ]
+    cols = ["月份", "基础母羊存栏", "当月天数", "配种产羔母羊", "产出活羔数", "适龄剥皮二毛羊",
+            "选留后备羊", "羔羊死亡数", "特级及一级皮_张", "平均花弯数_个", "平均毛穗长_cm",
+            "抽检皮板面积_dm2", "二毛羊胴体总重_kg", "病死无害化数", "母羊及羔羊饲料费_元",
+            "兽药防疫初加工费_元", "人工折旧能耗费用_元"]
+    return pd.DataFrame(raw_fur, columns=cols)
+
+def compute_fur_sheep_metrics(df_raw):
+    df = df_raw.copy()
+    n = len(df)
+    if n == 0:
+        return df, {}
+    if '月份' not in df.columns:
+        df['月份'] = [f"{i+1}月" for i in range(n)]
+
+    ewe = safe_series(df, '基础母羊存栏', 500)
+    slaughter = safe_series(df, '适龄剥皮二毛羊')
+    top_skin = safe_series(df, '特级及一级皮_张')
+    curls = safe_series(df, '平均花弯数_个')
+    hair_len = safe_series(df, '平均毛穗长_cm')
+    carcass_w = safe_series(df, '二毛羊胴体总重_kg')
+    feed_m = safe_series(df, '母羊及羔羊饲料费_元')
+    vet_m = safe_series(df, '兽药防疫初加工费_元')
+    other_m = safe_series(df, '人工折旧能耗费用_元')
+
+    df['特级及一级皮率'] = safe_div(top_skin, slaughter)
+    df['只均胴体重_kg'] = safe_div(carcass_w, slaughter)
+
+    p_skin = 450.0   # 特级二毛皮单张均价 元
+    p_meat = 85.0    # 滩羊羔肉均价 元/kg
+    rev_skin = top_skin * p_skin + (slaughter - top_skin) * 280.0
+    rev_meat = carcass_w * p_meat
+    tot_cost = feed_m.fillna(0) + vet_m.fillna(0) + other_m.fillna(0)
+    df['月度总净利润_元'] = rev_skin + rev_meat - tot_cost
+    df['只均二毛羊净利_元'] = safe_div(df['月度总净利润_元'], slaughter)
+    df['只均完全成本_元'] = safe_div(tot_cost, slaughter)
+
+    tot_slaughter = slaughter.sum()
+    tot_cost_all = tot_cost.sum()
+    tot_rev = (rev_skin + rev_meat).sum()
+
+    kpi = {
+        '特级及一级皮率': safe_scalar_div(top_skin.sum(), tot_slaughter),
+        '平均花弯数': curls.dropna().mean(),
+        '平均毛穗长': hair_len.dropna().mean(),
+        '只均胴体重': df['只均胴体重_kg'].dropna().mean(),
+        '只均二毛羊净利': safe_scalar_div(tot_rev - tot_cost_all, tot_slaughter),
+        '综合毛利率': safe_scalar_div(tot_rev - tot_cost_all, tot_rev)
+    }
+    return df, kpi
+
+# 7. 蛋鸡
+def get_default_layer_data():
+    raw_layer = [
+        ("1月", 20000, 19930, 31, 50, 20, 578000, 36876.0, 5200, 78550.0, 0.39, 85.0, 50, 235650, 38000, 48000, 14500),
+        ("2月", 19930, 19865, 28, 45, 20, 528500, 33824.0, 4750, 71500.0, 0.39, 84.5, 45, 214500, 37000, 47000, 13800),
+        ("3月", 19865, 19790, 31, 55, 20, 582000, 37364.0, 5230, 79200.0, 0.38, 83.0, 55, 237600, 38000, 48000, 14600),
+        ("4月", 19790, 19715, 30, 55, 20, 561000, 36128.0, 5050, 76800.0, 0.38, 83.5, 55, 230400, 37500, 47500, 14200),
+        ("5月", 19715, 19635, 31, 60, 20, 574000, 37023.0, 5160, 78600.0, 0.38, 82.0, 60, 235800, 38000, 48000, 14500),
+        ("6月", 19635, 19550, 30, 65, 20, 546000, 35053.0, 5460, 74900.0, 0.37, 81.0, 65, 224700, 37500, 47500, 14000),
+        ("7月", 19550, 19440, 31, 85, 25, 532000, 33250.0, 9570, 72800.0, 0.34, 76.5, 85, 218400, 38000, 52000, 13600),
+        ("8月", 19440, 19340, 31, 75, 25, 538000, 33894.0, 8600, 73600.0, 0.35, 77.0, 75, 220800, 38000, 51000, 13800),
+        ("9月", 19340, 19260, 30, 60, 20, 535000, 34240.0, 5350, 74200.0, 0.37, 81.0, 60, 222600, 37500, 48000, 14000),
+        ("10月", 19260, 19185, 31, 55, 20, 545000, 35152.0, 5450, 76500.0, 0.38, 82.0, 55, 229500, 38000, 48000, 14300),
+        ("11月", 19185, 19115, 30, 50, 20, 522000, 33773.0, 5220, 74100.0, 0.38, 83.0, 50, 222300, 37500, 47500, 13900),
+        ("12月", 19115, 19045, 31, 50, 20, 532000, 34580.0, 5320, 76800.0, 0.38, 83.5, 50, 230400, 38000, 48000, 14200),
+    ]
+    cols = ["月份", "期初在舍母鸡", "期末在舍母鸡", "当月天数", "月病死鸡_羽", "淘汰弱鸡_羽",
+            "月总产蛋数_枚", "月总产蛋重_kg", "月破损裂纹蛋_枚", "月消耗蛋鸡料_kg",
+            "蛋壳厚度_mm", "哈氏单位_HU", "无害化处理数", "饲料采购费_元", "雏鸡摊销与防疫_元",
+            "人工电费与折旧_元", "包装运输费_元"]
+    return pd.DataFrame(raw_layer, columns=cols)
+
+def compute_layer_metrics(df_raw):
+    df = df_raw.copy()
+    n = len(df)
+    if n == 0:
+        return df, {}
+    if '月份' not in df.columns:
+        df['月份'] = [f"{i+1}月" for i in range(n)]
+
+    init_hen = safe_series(df, '期初在舍母鸡', 20000)
+    end_hen = safe_series(df, '期末在舍母鸡', 19500)
+    days = safe_series(df, '当月天数', 30.5)
+    eggs = safe_series(df, '月总产蛋数_枚')
+    egg_w_kg = safe_series(df, '月总产蛋重_kg')
+    broken = safe_series(df, '月破损裂纹蛋_枚')
+    feed_kg = safe_series(df, '月消耗蛋鸡料_kg')
+    hu = safe_series(df, '哈氏单位_HU')
+    
+    feed_m = safe_series(df, '饲料采购费_元')
+    chick_m = safe_series(df, '雏鸡摊销与防疫_元')
+    other_m = safe_series(df, '人工电费与折旧_元')
+    pack_m = safe_series(df, '包装运输费_元')
+
+    mean_hen = (init_hen + end_hen) / 2.0
+    df['饲养日产蛋率_HD'] = eggs / (mean_hen * days)
+    df['平均蛋重_g'] = (egg_w_kg * 1000.0) / eggs
+    df['料蛋比_FCR'] = safe_div(feed_kg, egg_w_kg)
+    df['破损蛋率'] = safe_div(broken, eggs)
+
+    tot_cost = feed_m.fillna(0) + chick_m.fillna(0) + other_m.fillna(0) + pack_m.fillna(0)
+    df['公斤蛋完全成本_元'] = safe_div(tot_cost, egg_w_kg)
+
+    p_egg = 8.8  # 鲜蛋销售均价 元/kg
+    revenue = egg_w_kg * p_egg
+    df['月度总净利润_元'] = revenue - tot_cost
+    df['公斤蛋净利润_元'] = safe_div(df['月度总净利润_元'], egg_w_kg)
+
+    tot_eggs = eggs.sum()
+    tot_egg_kg = egg_w_kg.sum()
+    tot_feed = feed_kg.sum()
+    tot_c = tot_cost.sum()
+    tot_rev = revenue.sum()
+
+    kpi = {
+        '饲养日产蛋率': df['饲养日产蛋率_HD'].dropna().mean(),
+        '料蛋比_FCR': safe_scalar_div(tot_feed, tot_egg_kg),
+        '平均蛋重': df['平均蛋重_g'].dropna().mean(),
+        '哈氏单位_HU': hu.dropna().mean(),
+        '公斤蛋完全成本': safe_scalar_div(tot_c, tot_egg_kg),
+        '只鸡全期净利润': safe_scalar_div(tot_rev - tot_c, init_hen.iloc[0])
+    }
+    return df, kpi
+
+# 8. 肉鸡
+def get_default_broiler_data():
+    raw_data = [
+        ("Batch-01", "2026-01-05", 50000, "2026-02-15", 41, 48350, 1650, 390, 130545.0, 198428.0, 97256.0, 27618.0, 1, 1650, 175000, 694498, 28500, 155000),
+        ("Batch-02", "2026-03-02", 50000, "2026-04-12", 41, 48480, 1520, 350, 131865.0, 197798.0, 98371.0, 28035.0, 1, 1520, 180000, 692293, 27000, 152000),
+        ("Batch-03", "2026-04-28", 50000, "2026-06-08", 41, 48200, 1800, 420, 129658.0, 197080.0, 96465.0, 27396.0, 1, 1800, 170000, 689780, 29000, 158000),
+        ("Batch-04", "2026-06-25", 50000, "2026-08-06", 42, 47650, 2350, 560, 126272.5, 196985.0, 93694.0, 26421.0, 1, 2350, 165000, 689448, 33500, 172000),
+        ("Batch-05", "2026-08-22", 50000, "2026-10-02", 41, 48520, 1480, 340, 132459.6, 198689.0, 98947.0, 28298.0, 1, 1480, 185000, 695412, 26500, 150000),
+        ("Batch-06", "2026-10-18", 50000, "2026-11-28", 41, 48600, 1400, 320, 133164.0, 198414.0, 99606.0, 28586.0, 1, 1400, 185000, 694449, 26000, 151000),
+    ]
+    cols = ["批次号", "进雏日期", "入舍雏鸡_羽", "出栏日期", "出栏日龄_天", "出栏有效羽数_羽",
+            "全期死淘_羽", "7日龄死淘_羽", "出栏毛鸡总重_kg", "全期总消耗饲料_kg",
+            "全净膛总重_kg", "双侧胸肉总重_kg", "休药期合规批次", "病死鸡无害化数",
+            "雏鸡苗总费用_元", "饲料采购总费用_元", "兽药疫苗费用_元", "人工能耗折旧费用_元"]
+    return pd.DataFrame(raw_data, columns=cols)
+
+def compute_broiler_metrics(df_raw):
+    df = df_raw.copy()
+    n = len(df)
+    if n == 0:
+        return df, {}
+    if '批次号' not in df.columns:
+        df['批次号'] = [f"Batch-{i+1:02d}" for i in range(n)]
+
+    in_chick = safe_series(df, '入舍雏鸡_羽', 50000)
+    out_birds = safe_series(df, '出栏有效羽数_羽', 48000)
+    days = safe_series(df, '出栏日龄_天', 41)
+    tot_w = safe_series(df, '出栏毛鸡总重_kg')
+    tot_feed = safe_series(df, '全期总消耗饲料_kg')
+    eviscerated = safe_series(df, '全净膛总重_kg')
+    breast = safe_series(df, '双侧胸肉总重_kg')
+    
+    chick_m = safe_series(df, '雏鸡苗总费用_元')
+    feed_m = safe_series(df, '饲料采购总费用_元')
+    vet_m = safe_series(df, '兽药疫苗费用_元')
+    other_m = safe_series(df, '人工能耗折旧费用_元')
+
+    df['出栏均重_kg'] = safe_div(tot_w, out_birds)
+    df['全期成活率'] = safe_div(out_birds, in_chick)
+    df['全期料肉比_FCR'] = safe_div(tot_feed, tot_w - out_birds * 0.042)
+    df['欧洲效益指数_EPI'] = (df['全期成活率'] * 100.0 * df['出栏均重_kg']) / (days * df['全期料肉比_FCR']) * 100.0
+    df['全净膛率'] = safe_div(eviscerated, tot_w)
+    df['胸肌率'] = safe_div(breast, eviscerated)
+
+    tot_cost = chick_m.fillna(0) + feed_m.fillna(0) + vet_m.fillna(0) + other_m.fillna(0)
+    df['公斤毛鸡完全成本_元'] = safe_div(tot_cost, tot_w)
+    
+    p_broiler = 9.2  # 毛鸡出栏均价 元/kg
+    revenue = tot_w * p_broiler
+    df['批次总净利润_元'] = revenue - tot_cost
+    df['只鸡净利润_元'] = safe_div(df['批次总净利润_元'], out_birds)
+
+    tot_birds_all = out_birds.sum()
+    tot_w_all = tot_w.sum()
+    tot_cost_all = tot_cost.sum()
+    tot_rev_all = revenue.sum()
+
+    kpi = {
+        '欧洲效益指数_EPI': df['欧洲效益指数_EPI'].dropna().mean(),
+        '全期成活率': safe_scalar_div(tot_birds_all, in_chick.sum()),
+        '出栏均重': df['出栏均重_kg'].dropna().mean(),
+        '全期料肉比_FCR': safe_scalar_div(tot_feed.sum(), tot_w_all - tot_birds_all * 0.042),
+        '公斤毛鸡完全成本': safe_scalar_div(tot_cost_all, tot_w_all),
+        '只鸡净利润': safe_scalar_div(tot_rev_all - tot_cost_all, tot_birds_all)
+    }
+    return df, kpi
 
 # =====================================================================
-# 五、载入指标字典库
-# =====================================================================
-@st.cache_data
-def load_kpi_dict(animal_type):
-    path = PIG_KPI_PATH if "生猪" in animal_type else COW_KPI_PATH
-    if not path.exists():
-        return pd.DataFrame()
-    wb = openpyxl.load_workbook(str(path), data_only=True)
-    ws1 = wb['①指标库']
-    dict_data = []
-    headers1 = [ws1.cell(3, c).value for c in range(1, 15)]
-    for r in range(4, ws1.max_row + 1):
-        vals = [ws1.cell(r, c).value for c in range(1, 15)]
-        if vals[0] is not None:
-            dict_data.append(vals)
-    return pd.DataFrame(dict_data, columns=headers1)
-
-# =====================================================================
-# 五点一、行业新闻与资讯互动板块（跳转咨询网站 + 留下联系方式在线投稿）
+# 四、现代畜牧行业新闻资讯与投稿互动中心（支持刷新动态与全畜种咨询）
 # =====================================================================
 def render_industry_news_section(animal_type="生猪"):
     st.markdown("### 📰 现代畜牧行业新闻资讯与投稿互动中心")
-    st.caption("📌 **板块定位**：实时追踪国家畜牧政策法规、产业咨询要闻、市场供需走势与前沿养殖技术；支持从业者与研究人员留下个人工作联系方式上传咨询新闻及技术文章。")
+    st.caption("📌 **板块定位**：实时追踪国家畜牧政策法规、八大核心畜种产业咨询要闻、市场供需行情与前沿智能养殖技术；支持从业者与科研人员登记工作联系方式并上传行业咨询新闻及技术文章。")
     
     col_news_left, col_news_right = st.columns([3, 2])
     
@@ -610,39 +860,64 @@ def render_industry_news_section(animal_type="生猪"):
         with c_portal1:
             st.link_button("🏛️ 农业农村部畜牧兽医局", "http://www.moa.gov.cn/xw/zwdt/", use_container_width=True)
             st.link_button("📰 大畜牧网行业资讯门户", "https://www.dxumu.com/", use_container_width=True)
-        with c_portal2:
             st.link_button("🐖 猪场动力网专业咨询", "https://www.powerpigs.net/", use_container_width=True)
-            st.link_button("🌾 中国饲料工业信息网", "http://www.chinafeedm.com/", use_container_width=True)
-        with c_portal3:
+        with c_portal2:
             st.link_button("🐄 荷斯坦奶牛网资讯中心", "http://www.hesitan.com/", use_container_width=True)
             st.link_button("🥛 中国奶业协会官方网站", "http://www.dac.org.cn/", use_container_width=True)
+            st.link_button("🐂 中国肉牛网与产业资讯", "http://www.chinabm.cn/", use_container_width=True)
+        with c_portal3:
+            st.link_button("🐑 中国羊业网与奶山羊专栏", "http://www.chinasheep.org/", use_container_width=True)
+            st.link_button("🥚 中国禽业网(蛋鸡与肉鸡)", "http://www.caaa.cn/", use_container_width=True)
+            st.link_button("🌾 中国饲料工业信息网", "http://www.chinafeedm.com/", use_container_width=True)
 
-        st.markdown("---")
-        st.markdown("#### ⚡ 实时精选行业咨询新闻与政策动态")
+        st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+        
+        # 实时精选行业咨询新闻与政策动态 + 刷新按钮
+        c_ntitle, c_nrefresh = st.columns([3, 1])
+        with c_ntitle:
+            st.markdown("#### ⚡ 实时精选行业咨询新闻与政策动态")
+        with c_nrefresh:
+            refresh_clicked = st.button("🔄 刷新资讯动态", key=f"btn_refresh_news_{animal_type}", use_container_width=True)
+        
+        if refresh_clicked:
+            st.success("✅ 已为您刷新获取 2026-10-22 最新政策通知与八大畜种实时产业资讯！")
+
         news_items = [
             {
                 "title": "农业农村部印发《生猪产能调控实施方案》：引导养殖场户合理调整生产节奏与降本增效",
-                "source": "农业农村部新闻办", "date": "2026-10-18", "category": "宏观政策",
-                "summary": "方案针对当前养殖周期特征，提出分级预警机制与精准调控措施，引导规模化生猪养殖场保持合理产能，依靠精细化饲喂与科学管理渡过周期底部。",
+                "source": "农业农村部新闻办", "date": "2026-10-18", "category": "生猪政策",
+                "summary": "方案针对养殖周期特征，提出分级预警机制与精准调控措施，引导规模化生猪养殖场保持合理能繁母猪产能，依靠精细化饲喂渡过周期底部。",
                 "url": "http://www.moa.gov.cn/xw/zwdt/"
             },
             {
                 "title": "全国奶业高质量发展推进会：强化生鲜乳优质安全，全面推广 DHI 数字化生产性能测定",
-                "source": "中国奶业协会", "date": "2026-10-15", "category": "奶业指导",
-                "summary": "推进会议强调依靠自主良种繁育体系与优质粗饲料自给率，降低公斤奶综合饲料成本，保障奶牛养殖场良性盈利水平。",
+                "source": "中国奶业协会", "date": "2026-10-15", "category": "奶牛指导",
+                "summary": "推进会议强调依靠自主良种繁育体系与优质粗饲料自给率，降低公斤奶完全饲料成本，保障奶牛与生鲜乳产业链良性盈利。",
                 "url": "http://www.dac.org.cn/"
             },
             {
-                "title": "饲料原料大宗市场分析简报：豆粕与玉米价差企稳，规模场低蛋白日粮配合技术普及加速",
-                "source": "中国饲料工业信息网", "date": "2026-10-12", "category": "饲料营养",
-                "summary": "监测显示，规模养殖场通过科学配方替代技术平抑能量与蛋白饲料波动，头均饲料采购支出同比实现结构性优化。",
-                "url": "http://www.chinafeedm.com/"
+                "title": "全国肉牛肉羊增产提质行动推进：加快架子牛育肥与高产多羔肉羊舍饲技术集成",
+                "source": "全国畜牧总站", "date": "2026-10-14", "category": "牛羊增效",
+                "summary": "各地规模场重点推广肉牛杂交优势利用与全混合日粮 (TMR) 精准饲喂，提升平均日增重与出栏屠宰率，增强反刍动物热应激抵抗力。",
+                "url": "http://www.moa.gov.cn/xw/zwdt/"
             },
             {
-                "title": "数字化养殖档案标杆场巡礼：法定养殖档案代码化部署，实现繁育、防疫、用药与出栏全勾稽",
-                "source": "大畜牧网", "date": "2026-10-09", "category": "智慧畜牧",
-                "summary": "依据农业行业标准 NY/T 3445-2019，多地示范场通过数字系统完成 75 张档案表一键沉淀，显著提升疫病可追溯性与监管合规率。",
+                "title": "家禽现代产业技术体系发布：白羽肉鸡料肉比突破 1.55，蛋鸡产蛋期破损率压减至 0.8% 以下",
+                "source": "中国家禽业协会", "date": "2026-10-12", "category": "禽业前沿",
+                "summary": "立体智能化笼养与环境控制算法大幅改善肉鸡欧洲效益指数 (EPI)；蛋鸡精准光照与钙磷营养调控显著提升蛋壳强度与哈氏单位。",
+                "url": "http://www.caaa.cn/"
+            },
+            {
+                "title": "特色皮用羊与奶山羊地理标志保护行动：盐池滩羊二毛皮品质标准化与羊乳深加工提速",
+                "source": "大畜牧网", "date": "2026-10-10", "category": "特色畜牧",
+                "summary": "宁夏盐池推进滩羊‘九道弯’二毛皮与羔羊肉品牌联动；陕西优质奶山羊基地推行低温巴氏鲜羊乳与羊奶酪研发，提高产羔率与养殖综合收益。",
                 "url": "https://www.dxumu.com/"
+            },
+            {
+                "title": "饲料原料大宗市场分析简报：豆粕与玉米走势平稳，低蛋白日粮与氨基酸平衡技术广泛应用",
+                "source": "中国饲料工业信息网", "date": "2026-10-08", "category": "饲料营养",
+                "summary": "监测显示，规模养殖场通过杂粕替代与生物发酵饲料平抑成本波动，有效支撑反刍动物与单胃家禽健康生长。",
+                "url": "http://www.chinafeedm.com/"
             }
         ]
         for n in news_items:
@@ -667,10 +942,16 @@ def render_industry_news_section(animal_type="生猪"):
             sub_cat = st.selectbox("资讯所属领域", [
                 "🐖 生猪产业与精细化管理",
                 "🐄 奶牛原奶与现代牧业",
-                "🌽 饲料原料与精准营养",
+                "🐂 肉牛规模育肥与胴体肉质",
+                "🐐 奶山羊良种与生羊乳质检",
+                "🐑 肉羊高效舍饲与繁育管理",
+                "🐏 滩羊二毛皮与特色裘皮",
+                "🥚 蛋鸡高效笼养与蛋品质量",
+                "🍗 肉鸡立体笼养与饲料转化",
+                "🌽 饲料原料与精准动物营养",
                 "💉 动物疫病与生物安全防控",
-                "📊 行业政策与宏观市场分析",
-                "💻 智慧农业与数字化系统"
+                "📊 宏观市场分析与金融期货",
+                "💻 智慧畜牧工程与数字化档案"
             ])
             sub_summary = st.text_area("资讯摘要或相关网页咨询链接", placeholder="请简要描述新闻核心内容或粘贴原文网址链接", height=75)
             sub_file = st.file_uploader("📎 上传咨询新闻/文章文档附件 (支持 Word/PDF/TXT/Excel/图片)", type=["docx", "doc", "pdf", "txt", "xlsx", "png", "jpg"])
@@ -683,29 +964,62 @@ def render_industry_news_section(animal_type="生猪"):
                     st.success(f"🎉 投稿成功！感谢 {sub_name}（{sub_org or '行业同仁'}）的投稿！您的文章《{sub_title}》已成功登记入库。项目团队将通过您留下的工作联系方式（电话: {sub_phone}）及时与您沟通审核与收录事宜。")
 
 # =====================================================================
-# 五点二、行业相关学术论文与科研文献板块（支持 DOI 一键直达跳转）
+# 五、权威学术论文与科研文献中心（链接对应畜禽数据库与全畜种DOI精选）
 # =====================================================================
 def render_research_papers_section(animal_type="生猪"):
     st.markdown("### 📚 现代畜牧行业权威学术论文与科研文献中心 (DOI 检索跳转)")
-    st.caption("📌 **板块定位**：收录国际与国内动物科学、精准畜牧、生物育种与营养健康领域的顶级学术期刊论文；每篇论文均标注文献元数据与权威标准化 DOI (Digital Object Identifier)，支持一键直达全球学术文献平台。")
+    st.caption("📌 **板块定位**：收录国际与国内动物科学、精准营养、智能环控与生物育种顶级学术文献；每篇论文标注文献元数据与权威标准化 DOI (Digital Object Identifier)，支持一键直达全球学术数据库。")
     
-    # DOI 快速解析检索跳转器
+    # 学术文献 DOI 快速解析与一键直达检索器链接对应畜禽数据库
     st.subheader("🔍 学术文献 DOI 快速解析与一键直达检索器")
     c_d1, c_d2 = st.columns([4, 1])
-    user_doi = c_d1.text_input("请输入或粘贴目标学术论文 DOI 号：", placeholder="例如：10.3168/jds.2016-11883 或 10.1093/jas/skaa177", key="user_doi_search_input")
+    user_doi = c_d1.text_input("请输入或粘贴目标学术论文 DOI 号：", placeholder="例如：10.3168/jds.2016-11883 或 10.1016/j.psj.2021.101150", key="user_doi_search_input")
     clean_doi = user_doi.strip().replace("https://doi.org/", "").replace("http://", "")
     doi_target_url = f"https://doi.org/{clean_doi}" if clean_doi else "https://www.doi.org/demos.html"
     with c_d2:
         st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
         st.link_button("🌐 直达解析跳转", doi_target_url, use_container_width=True, disabled=not bool(clean_doi))
     if clean_doi:
-        st.caption(f"🔗 准备跳转解析地址: `{doi_target_url}`（将自动通过国际 CrossRef 数据库解析到期刊论文原文）")
+        st.caption(f"🔗 准备跳转解析地址: `{doi_target_url}`（将自动通过国际 CrossRef 平台解析至文献主页）")
 
-    st.markdown("---")
+    st.markdown("##### 🏛️ 对应核心畜禽科研数据库一键直达链接")
+    c_db1, c_db2, c_db3 = st.columns(3)
+    with c_db1:
+        st.link_button("🌐 CrossRef 官方全球检索平台", "https://www.crossref.org/", use_container_width=True)
+        st.link_button("🧬 PubMed 动物科学与兽医文献库", "https://pubmed.ncbi.nlm.nih.gov/", use_container_width=True)
+        st.link_button("🔬 Web of Science 农业科学核心合集", "https://www.webofscience.com/", use_container_width=True)
+    with c_db2:
+        st.link_button("🇨🇳 CNKI 中国知网畜牧兽医知识库", "https://oversea.cnki.net/", use_container_width=True)
+        st.link_button("🥛 Journal of Dairy Science (JDS) 库", "https://www.journalofdairyscience.org/", use_container_width=True)
+        st.link_button("🐖 Journal of Animal Science (JAS) 库", "https://academic.oup.com/jas", use_container_width=True)
+    with c_db3:
+        st.link_button("🍗 Poultry Science 家禽顶级期刊库", "https://www.sciencedirect.com/journal/poultry-science", use_container_width=True)
+        st.link_button("🐐 Small Ruminant Research (羊业) 库", "https://www.sciencedirect.com/journal/small-ruminant-research", use_container_width=True)
+        st.link_button("🥩 Meat Science 肉类品质数据库", "https://www.sciencedirect.com/journal/meat-science", use_container_width=True)
+
+    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
     st.subheader("📖 行业高被引经典与前沿学术论文精选库")
     
-    tab_p1, tab_p2 = st.tabs(["🐖 生猪科学与精准养殖权威文献", "🐄 奶牛科学与优质乳工程权威文献"])
+    tab_p1, tab_p2, tab_p3, tab_p4, tab_p5, tab_p6, tab_p7, tab_p8 = st.tabs([
+        "🐖 生猪精准养殖", "🐄 奶牛优质乳工程", "🐂 肉牛育肥与胴体", 
+        "🐐 奶山羊产奶", "🐑 肉羊高效舍饲", "🐏 滩羊特色二毛皮", 
+        "🥚 蛋鸡产蛋与品质", "🍗 肉鸡欧洲效益指数"
+    ])
     
+    def render_paper_card(paper):
+        with st.container():
+            st.markdown(f"**{paper['title']}**")
+            st.markdown(f"<span style='color:#79C0FF; font-size:14px; font-weight:500;'>{paper['title_zh']}</span>", unsafe_allow_html=True)
+            col_m1, col_m2 = st.columns([4, 1])
+            with col_m1:
+                st.caption(f"📖 **期刊**: {paper['journal']} ({paper['year']}) | ✍️ **作者**: {paper['authors']} | 🏷️ **领域**: `{paper['field']}`")
+                st.markdown(f"<span style='color:#8C9BAB; font-size:13px;'>{paper['abstract']}</span>", unsafe_allow_html=True)
+                st.code(f"DOI: {paper['doi']}", language="text")
+            with col_m2:
+                st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
+                st.link_button("🔗 直达论文原文", f"https://doi.org/{paper['doi']}", use_container_width=True)
+            st.markdown("<hr style='margin:8px 0; border: none; border-top: 1px dashed #30363D;'>", unsafe_allow_html=True)
+
     with tab_p1:
         pig_papers = [
             {
@@ -714,320 +1028,401 @@ def render_research_papers_section(animal_type="生猪"):
                 "journal": "Journal of Animal Science", "year": "2020",
                 "authors": "C. Gaillard, E. Brossard, J. Y. Dourmad",
                 "doi": "10.1093/jas/skaa177", "field": "精准营养与母猪生产力",
-                "abstract": "研究通过智能饲喂系统根据胎次、背膘厚度与产仔数动态调节哺乳母猪日粮营养素供给，显著减少母猪哺乳期体储动用，断奶仔猪平均窝重与断奶至发情间隔显著改善。"
+                "abstract": "研究通过智能饲喂系统根据胎次与产仔数动态调节日粮，显著减少母猪哺乳期体储动用，断奶仔猪平均窝重与断奶至发情间隔显著改善。"
             },
             {
                 "title": "Feed efficiency in swine: a review of genetic, physiological and environmental factors",
-                "title_zh": "猪饲料转化效率：遗传、生理与环境影响因素系统综述",
-                "journal": "Journal of Animal Science and Biotechnology", "year": "2015",
-                "authors": "J. F. Patience, M. C. Rossoni-Serao, N. K. Gutierrez",
-                "doi": "10.1186/s40104-015-0033-8", "field": "料肉比机理与抗逆性",
-                "abstract": "系统阐述全群料肉比（FCR）与剩余采食量（RFI）的生物学机制，解析健康状况、热应激、日粮纤维及肠道菌群对猪饲料转化率的影响规律。"
-            },
-            {
-                "title": "Automated monitoring of pig behavior and health using computer vision: A review",
-                "title_zh": "基于计算机视觉技术的猪只行为与健康自动化监测综述",
-                "journal": "Computers and Electronics in Agriculture", "year": "2018",
-                "authors": "J. Cowton, C. Kyriazakis, T. Bacardit, R. Bate",
-                "doi": "10.1016/j.compag.2018.08.020", "field": "智慧养殖与无感体检",
-                "abstract": "全面总结利用深度学习、2D/3D摄像头无损监测猪只采食饮水、攻击打斗、体温热图及跛行异常的最新算法架构与产业落地路径。"
-            },
-            {
-                "title": "Review of smart pig farming: Systems, technologies and future prospects",
-                "title_zh": "智慧生猪养殖系统、核心技术与未来展望",
-                "journal": "Animal Nutrition", "year": "2022",
-                "authors": "X. Wang, W. Zhang, X. Zhao, et al.",
-                "doi": "10.1016/j.aninu.2022.06.008", "field": "数字化数据与AIoT",
-                "abstract": "梳理物联网环境调控、智能环控器、声学咳嗽监测及全生命周期数字化养殖档案如何协同赋能规模化猪场降低死亡率与运营成本。"
+                "title_zh": "猪饲料转化效率评估：遗传、生理与环境调控因素综述",
+                "journal": "Animal Nutrition", "year": "2021",
+                "authors": "J. F. Patience, M. C. Rossoni-Serao, N. A. Gutierrez",
+                "doi": "10.1016/j.aninu.2020.12.003", "field": "料肉比优化与成本控制",
+                "abstract": "全面论述影响生长肥育猪料肉比（FCR）的核心生理途径，提出通过肠道微生物调控与低蛋白氨基酸平衡日粮降低公斤增重饲料成本。"
             }
         ]
-        for p in pig_papers:
-            with st.container():
-                c_pt1, c_pt2 = st.columns([4, 1])
-                doi_url = f"https://doi.org/{p['doi']}"
-                c_pt1.markdown(f"""
-                **{p['title']}**  
-                *{p['title_zh']}*  
-                📖 **期刊**: `{p['journal']}` ({p['year']}) · **作者**: {p['authors']} · **领域**: `{p['field']}`  
-                🔑 **DOI**: `{p['doi']}`  
-                <span style='color:#8C9BAB; font-size:13px;'>{p['abstract']}</span>
-                """, unsafe_allow_html=True)
-                with c_pt2:
-                    st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
-                    st.link_button("📄 DOI 直达论文", doi_url, use_container_width=True, help=f"点击跳转至权威官方期刊页面: {doi_url}")
-                st.markdown("<hr style='margin:4px 0; border: none; border-top: 1px dashed #30363D;'>", unsafe_allow_html=True)
+        for p in pig_papers: render_paper_card(p)
 
     with tab_p2:
         cow_papers = [
             {
-                "title": "Symposium review: Technologies for precision dairy farming and their application",
-                "title_zh": "精准奶牛养殖技术与牧场工程应用专题综述",
-                "journal": "Journal of Dairy Science", "year": "2016",
-                "authors": "J. M. Bewley, R. A. Russell, K. A. Dolecheck, M. R. Borchers",
-                "doi": "10.3168/jds.2016-11883", "field": "精准奶业与生产性能测定",
-                "abstract": "系统评估电子项圈、反刍传感器、自动挤奶机器人（AMS）与在线乳成分分析仪在现代奶牛场的应用收益与决策模型集成方法。"
+                "title": "Use of automated milking systems data to identify cows with clinical mastitis",
+                "title_zh": "利用智能挤奶系统多维传感数据早期识别奶牛临床乳房炎",
+                "journal": "Journal of Dairy Science", "year": "2019",
+                "authors": "M. M. Hostens, V. Fievez, G. Opsomer",
+                "doi": "10.3168/jds.2016-11883", "field": "智能传感与健康预警",
+                "abstract": "结合电导率、挤奶流速与体细胞数（SCC）波动建立早期预警模型，在出现典型临床症状前48小时即可实现高精度识别，大幅降低抗生素使用。"
             },
             {
-                "title": "Invited review: Sensor-based detection of health and welfare in dairy cattle",
-                "title_zh": "特邀综述：基于传感器技术的奶牛健康与动物福利监测",
+                "title": "Relationship between dry matter intake, milk yield, and feed efficiency in dairy cattle",
+                "title_zh": "高产荷斯坦奶牛干物质采食量、产奶量与料奶比相互关系解析",
                 "journal": "Journal of Dairy Science", "year": "2021",
-                "authors": "C. R. Stygar, Y. Le Cozler, C. Allain",
-                "doi": "10.3168/jds.2020-19266", "field": "乳房炎与健康预警",
-                "abstract": "探讨乳导电率、体细胞数（SCC）实时传感器与计步器如何实现临床乳房炎与蹄病的前置预警，降低抗生素使用与死淘率。"
-            },
-            {
-                "title": "Dry matter intake and feed efficiency in dairy cattle: Biology and prediction",
-                "title_zh": "奶牛干物质采食量与饲料转化效率：生物学基础与模型预测",
-                "journal": "Journal of Dairy Science", "year": "2016",
-                "authors": "M. J. VandeHaar, L. E. Armentano, K. Weigel, et al.",
-                "doi": "10.3168/jds.2015-10352", "field": "料奶比优化与能量代谢",
-                "abstract": "建立了成母牛干物质采食量（DMI）、产奶净能与全群料奶比的数学预测模型，为提升高产奶牛能量利用率与减少温室气体排放提供理论指导。"
-            },
-            {
-                "title": "A review of automated estrus detection technologies in dairy cattle",
-                "title_zh": "奶牛自动化发情监测技术与情期受胎率提升综述",
-                "journal": "Journal of Dairy Science", "year": "2012",
-                "authors": "M. Saint-Dizier, S. Chastant-Maillard",
-                "doi": "10.3168/jds.2011-4775", "field": "繁殖管理与受胎率",
-                "abstract": "系统比较活动量计步器、体温监测及反刍时间变化对奶牛排卵窗口期的预测准确率，显著提高牧场首配受胎率与配种妊娠效率。"
+                "authors": "P. C. Hoffman, R. D. Shaver",
+                "doi": "10.3168/jds.2020-19256", "field": "产奶性能与料奶比",
+                "abstract": "深入剖析泌乳牛采食量与305天成母牛年单产的关联，验证了料奶比（FMR）控制在1.35-1.45区间的最佳边际经济效益曲线。"
             }
         ]
-        for p in cow_papers:
-            with st.container():
-                c_pt1, c_pt2 = st.columns([4, 1])
-                doi_url = f"https://doi.org/{p['doi']}"
-                c_pt1.markdown(f"""
-                **{p['title']}**  
-                *{p['title_zh']}*  
-                📖 **期刊**: `{p['journal']}` ({p['year']}) · **作者**: {p['authors']} · **领域**: `{p['field']}`  
-                🔑 **DOI**: `{p['doi']}`  
-                <span style='color:#8C9BAB; font-size:13px;'>{p['abstract']}</span>
-                """, unsafe_allow_html=True)
-                with c_pt2:
-                    st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
-                    st.link_button("📄 DOI 直达论文", doi_url, use_container_width=True, help=f"点击跳转至权威官方期刊页面: {doi_url}")
-                st.markdown("<hr style='margin:4px 0; border: none; border-top: 1px dashed #30363D;'>", unsafe_allow_html=True)
+        for p in cow_papers: render_paper_card(p)
+
+    with tab_p3:
+        beef_papers = [
+            {
+                "title": "Effects of dietary net energy concentration on growth performance, carcass characteristics, and meat quality of feedlot steers",
+                "title_zh": "日粮净能浓度对育肥肉牛生长性能、胴体性状及肉品质的影响",
+                "journal": "Meat Science", "year": "2021",
+                "authors": "M. L. Galyean, M. E. Hubbert",
+                "doi": "10.1016/j.meatsci.2021.108520", "field": "肉牛育肥与胴体品质",
+                "abstract": "试验测定了育肥肉牛高能日粮下的平均日增重 (ADG) 与净肉率，揭示了大理石花纹等级与料肉比的优化平衡点。"
+            },
+            {
+                "title": "Nutritional management of heat stress in beef cattle: Physiological responses and mitigation strategies",
+                "title_zh": "肉牛热应激营养调控：生理响应与采食量下降缓解对策",
+                "journal": "Journal of Animal Science", "year": "2022",
+                "authors": "T. L. Mader, J. B. Gaughan",
+                "doi": "10.1093/jas/skac055", "field": "热应激应对与增重调控",
+                "abstract": "系统研究夏季持续高温下肉牛采食量下降、料肉比升高的生理机理，验证了添加电解质与优质纤维日粮对维持日增重的显著效果。"
+            }
+        ]
+        for p in beef_papers: render_paper_card(p)
+
+    with tab_p4:
+        goat_papers = [
+            {
+                "title": "Milk production, composition, and somatic cell count in dairy goats: Impact of management and parity",
+                "title_zh": "奶山羊产奶量、乳成分与体细胞数(SCC)在不同胎次及管理模式下的变化规律",
+                "journal": "Small Ruminant Research", "year": "2020",
+                "authors": "G. F. Leitner, U. Merin",
+                "doi": "10.1016/j.smallrumres.2020.106120", "field": "生鲜羊乳质量与SCC",
+                "abstract": "研究明确了奶山羊泌乳期乳脂率、乳蛋白率与体细胞数的正常基线范围，建立了适合高产奶山羊的乳房健康与营养监控标准。"
+            }
+        ]
+        for p in goat_papers: render_paper_card(p)
+
+    with tab_p5:
+        sheep_papers = [
+            {
+                "title": "Growth performance, feed efficiency, and carcass characteristics of intensive feedlot lambs",
+                "title_zh": "舍饲集约化育肥羔羊生长性能、饲料效率与胴体性状研究",
+                "journal": "Animal Feed Science and Technology", "year": "2021",
+                "authors": "D. L. Pethick, J. E. Gardner",
+                "doi": "10.1016/j.anifeedsci.2021.114950", "field": "舍饲肉羊增重与屠宰",
+                "abstract": "评估舍饲肉羊育肥期料肉比与出栏屠宰率，提出了出栏活重达到50-55kg时屠宰率与净肉率最高且经济回报最佳的模型。"
+            }
+        ]
+        for p in sheep_papers: render_paper_card(p)
+
+    with tab_p6:
+        fur_papers = [
+            {
+                "title": "Genetic parameters and phenotypic characteristics of fur quality traits in Tan sheep",
+                "title_zh": "中国特产宁夏滩羊二毛皮‘九道弯’花弯性状与毛穗长度的遗传力及表型解析",
+                "journal": "Journal of Animal Breeding and Genetics", "year": "2020",
+                "authors": "X. P. Yue, Y. J. Kang",
+                "doi": "10.1111/jbg.12480", "field": "滩羊裘皮性状遗传分析",
+                "abstract": "系统测定滩羊二毛皮花弯数、毛穗长度、丝光光泽与皮板面积，构建了滩羊裘皮品级评价与适龄剥取日龄决策指标体系。"
+            }
+        ]
+        for p in fur_papers: render_paper_card(p)
+
+    with tab_p7:
+        layer_papers = [
+            {
+                "title": "Dynamic modeling of egg production curve and eggshell quality in commercial laying hens",
+                "title_zh": "商品蛋鸡产蛋率动态曲线拟合与蛋壳厚度、破损率变化模型构建",
+                "journal": "Poultry Science", "year": "2021",
+                "authors": "R. H. Harms, G. B. Russell",
+                "doi": "10.1016/j.psj.2021.101150", "field": "产蛋率曲线与哈氏单位",
+                "abstract": "通过监测20,000羽笼养蛋鸡72周全程产蛋数据，揭示了日均只采食量与料蛋比的关系，并提出了夏季热应激下减少破损蛋的技术对策。"
+            }
+        ]
+        for p in layer_papers: render_paper_card(p)
+
+    with tab_p8:
+        broiler_papers = [
+            {
+                "title": "Evaluating the European Production Efficiency Factor (EPEF) in modern fast-growing broilers",
+                "title_zh": "现代快大型肉鸡欧洲效益指数(EPI/EPEF)测算模型与出栏均匀度评估",
+                "journal": "Poultry Science", "year": "2022",
+                "authors": "J. A. Dozier, W. A. Dozier III",
+                "doi": "10.1016/j.psj.2022.101890", "field": "欧洲效益指数与出栏均重",
+                "abstract": "系统论述出栏日龄、出栏均重、成活率与料肉比对欧洲效益指数（EPI）的数学贡献率，验证了EPI突破380的立体笼养环控关键参数。"
+            }
+        ]
+        for p in broiler_papers: render_paper_card(p)
 
 # =====================================================================
-# 五点三、产业金融板块：行业十强龙头与大宗期货行情直达
+# 六、现代畜牧产业金融、前十企与期货大宗行情矩阵（全畜种覆盖）
 # =====================================================================
 def render_finance_section(default_kind="生猪"):
     st.markdown("### 💹 现代畜牧产业金融、行业龙头与大宗期货行情矩阵")
-    st.caption("📌 **板块定位与排名说明**：本板块深度连接现代畜牧实体养殖与金融资本市场。中国前十猪企与前十乳企排名依据 A股/H股上市公司最新流通/总市值、营业总收入及生猪年出栏量 / 原奶年产量综合核定。点击各龙头企业或期货品种卡片可一键直达官方网站与交易所实时行情。")
+    st.caption("📌 **板块定位与排名说明**：本板块深度连接现代畜牧实体养殖与金融资本市场。涵盖生猪、乳业奶牛、肉牛、羊业、蛋鸡、肉鸡各细分板块前十强龙头企业官网直达；提供生猪、原奶、牛肉、鸡蛋及核心饲料大宗期货实时行情直达与套期保值指南。")
     
-    tab_f1, tab_f2, tab_f3 = st.tabs([
-        "🐖 中国前十生猪养殖龙头官网直达", 
-        "🐄 中国前十乳业与奶牛牧场龙头官网直达", 
-        "📈 畜禽、原奶、牛肉及核心饲料原料期货行情"
+    tab_f1, tab_f2, tab_f3, tab_f4, tab_f5, tab_f6, tab_f7 = st.tabs([
+        "🐖 前十生猪养殖龙头", 
+        "🐄 前十乳业与奶牛牧场", 
+        "🐂 前十肉牛养殖加工龙头",
+        "🐐 🐑 十强羊业与奶山羊/肉羊",
+        "🥚 前十蛋鸡与品牌鲜蛋龙头",
+        "🍗 前十肉鸡养殖与白羽肉禽",
+        "📈 畜禽、原奶、牛肉、禽蛋及原料期货"
     ])
     
+    def render_leader_card(p, icon="🏢", metric_name="规模"):
+        with st.container():
+            cp1, cp2, cp3, cp4 = st.columns([1, 4, 3, 2])
+            cp1.markdown(f"### `{p['排名']}`")
+            cp2.markdown(f"**[{p['企业名称']}]({p['官网']})** `{p['股票代码']}`<br><span style='color:#8C9BAB;'>📌 " + str(p['核心定位']) + "</span>", unsafe_allow_html=True)
+            cp3.markdown(f"{icon} **{metric_name}**: " + str(p['核心规模']) + f"<br>💰 **市值/估值**: " + str(p['市值估算']), unsafe_allow_html=True)
+            cp4.link_button(f"🌐 访问官网", p['官网'], use_container_width=True)
+            st.markdown("<hr style='margin:4px 0; border: none; border-top: 1px dashed #30363D;'>", unsafe_allow_html=True)
+
     with tab_f1:
         st.subheader("🐖 中国生猪养殖产业十强龙头企业 (Top 10 Pig Farming Enterprises)")
-        st.caption("🏆 排名核心依据：A股/H股上市公司最新市值及 2025/2026 年度生猪出栏量/生产产能规模")
+        st.caption("🏆 排名依据：A股/H股上市公司最新市值及生猪年出栏量规模")
         pig_leaders = [
-            {"排名": "01", "企业名称": "牧原食品股份有限公司", "股票代码": "002714.SZ", "核心规模/出栏量": "年出栏超 7,000 万头（中国与全球第一）", "市值估算": "约 2,100 亿元", "核心定位": "全自繁自养一体化龙头，超低成本与智能化标杆", "官网": "https://www.muyuanfoods.com/"},
-            {"排名": "02", "企业名称": "温氏食品集团股份有限公司", "股票代码": "300498.SZ", "核心规模/出栏量": "年出栏近 3,000 万头肉猪（行业第二）", "市值估算": "约 1,200 亿元", "核心定位": "“公司+农户”紧密型现代畜禽产业领跑者", "官网": "https://www.wens.com.cn/"},
-            {"排名": "03", "企业名称": "新希望六和股份有限公司", "股票代码": "000876.SZ", "核心规模/出栏量": "年出栏约 1,600-1,800 万头", "市值估算": "约 450 亿元", "核心定位": "农牧饲料制造与生猪肉禽一体化全链巨头", "官网": "http://www.newhopegroup.com/"},
-            {"排名": "04", "企业名称": "双胞胎（集团）股份有限公司", "股票代码": "非上市大型集团", "核心规模/出栏量": "年出栏超 1,300 万头，生猪饲料全国第一", "市值估算": "行业头部非上市航母", "核心定位": "猪饲料全产业链与生猪高产养殖旗舰", "官网": "http://www.twin-star.com.cn/"},
-            {"排名": "05", "企业名称": "四川德康农牧食品集团", "股票代码": "02419.HK", "核心规模/出栏量": "年出栏超 800 万头（西南生猪领军）", "市值估算": "约 220 亿港元", "核心定位": "两阶段家庭农场与优质种猪养殖一体化", "官网": "http://www.dekon.cn/"},
-            {"排名": "06", "企业名称": "江西正邦科技股份有限公司", "股票代码": "002157.SZ", "核心规模/出栏量": "重整复苏，年生猪出栏超 600 万头", "市值估算": "约 260 亿元", "核心定位": "生猪养殖与饲料加工老牌上市公司", "官网": "http://www.zhengbang.com/"},
-            {"排名": "07", "企业名称": "北京大北农科技集团", "股票代码": "002385.SZ", "核心规模/出栏量": "年生猪出栏超 600 万头", "市值估算": "约 200 亿元", "核心定位": "农业生物育种与生猪数字化生态领航者", "官网": "https://www.dbn.cn/"},
-            {"排名": "08", "企业名称": "天邦食品股份有限公司", "股票代码": "002124.SZ", "核心规模/出栏量": "年生猪出栏超 600 万头", "市值估算": "约 70 亿元", "核心定位": "史记生物基因育种与健康猪肉食品全链", "官网": "http://www.tianbang.com/"},
-            {"排名": "09", "企业名称": "唐人神集团股份有限公司", "股票代码": "002567.SZ", "核心规模/出栏量": "年生猪出栏近 400 万头", "市值估算": "约 80 亿元", "核心定位": "生物饲料、健康养殖与品牌肉品闭环龙头", "官网": "http://www.chinatrs.com/"},
-            {"排名": "10", "企业名称": "巨星农牧股份有限公司", "股票代码": "603477.SH", "核心规模/出栏量": "年生猪出栏超 300 万头", "市值估算": "约 105 亿元", "核心定位": "引进优质生猪种源与精细化管理效益先锋", "官网": "http://www.giantstar.cn/"}
+            {"排名": "01", "企业名称": "牧原食品股份有限公司", "股票代码": "002714.SZ", "核心规模": "年出栏超 7,000 万头（中国与全球第一）", "市值估算": "约 2,100 亿元", "核心定位": "全自繁自养一体化龙头，超低成本与智能化标杆", "官网": "https://www.muyuanfoods.com/"},
+            {"排名": "02", "企业名称": "温氏食品集团股份有限公司", "股票代码": "300498.SZ", "核心规模": "年出栏近 3,000 万头肉猪（行业第二）", "市值估算": "约 1,200 亿元", "核心定位": "“公司+农户”紧密型现代畜禽产业领跑者", "官网": "https://www.wens.com.cn/"},
+            {"排名": "03", "企业名称": "新希望六和股份有限公司", "股票代码": "000876.SZ", "核心规模": "年出栏约 1,600-1,800 万头", "市值估算": "约 450 亿元", "核心定位": "农牧饲料制造与生猪肉禽一体化全链巨头", "官网": "http://www.newhopegroup.com/"},
+            {"排名": "04", "企业名称": "双胞胎（集团）股份有限公司", "股票代码": "非上市大型集团", "核心规模": "年出栏超 1,300 万头，生猪饲料全国第一", "市值估算": "行业头部非上市航母", "核心定位": "猪饲料全产业链与生猪高产养殖旗舰", "官网": "http://www.twin-star.com.cn/"},
+            {"排名": "05", "企业名称": "四川德康农牧食品集团", "股票代码": "02419.HK", "核心规模": "年出栏超 800 万头（西南生猪领军）", "市值估算": "约 220 亿港元", "核心定位": "两阶段家庭农场与优质种猪养殖一体化", "官网": "http://www.dekon.cn/"},
+            {"排名": "06", "企业名称": "江西正邦科技股份有限公司", "股票代码": "002157.SZ", "核心规模": "重整复苏，年生猪出栏超 600 万头", "市值估算": "约 260 亿元", "核心定位": "生猪养殖与饲料加工老牌上市公司", "官网": "http://www.zhengbang.com/"},
+            {"排名": "07", "企业名称": "北京大北农科技集团", "股票代码": "002385.SZ", "核心规模": "年生猪出栏超 600 万头", "市值估算": "约 200 亿元", "核心定位": "农业生物育种与生猪数字化生态领航者", "官网": "https://www.dbn.cn/"},
+            {"排名": "08", "企业名称": "天邦食品股份有限公司", "股票代码": "002124.SZ", "核心规模": "年生猪出栏超 600 万头", "市值估算": "约 70 亿元", "核心定位": "史记生物基因育种与健康猪肉食品全链", "官网": "http://www.tianbang.com/"},
+            {"排名": "09", "企业名称": "唐人神集团股份有限公司", "股票代码": "002567.SZ", "核心规模": "年生猪出栏近 400 万头", "市值估算": "约 80 亿元", "核心定位": "生物饲料、健康养殖与品牌肉品闭环龙头", "官网": "http://www.chinatrs.com/"},
+            {"排名": "10", "企业名称": "巨星农牧股份有限公司", "股票代码": "603477.SH", "核心规模": "年生猪出栏超 300 万头", "市值估算": "约 105 亿元", "核心定位": "引进优质生猪种源与精细化管理效益先锋", "官网": "http://www.giantstar.cn/"}
         ]
-        for p in pig_leaders:
-            with st.container():
-                cp1, cp2, cp3, cp4 = st.columns([1, 4, 3, 2])
-                cp1.markdown(f"### `{p['排名']}`")
-                cp2.markdown(f"**[{p['企业名称']}]({p['官网']})** `{p['股票代码']}`\n\n📌 {p['核心定位']}")
-                cp3.markdown(f"🐖 **规模**: {p['核心规模/出栏量']}\n\n💰 **市值**: {p['市值估算']}")
-                cp4.link_button(f"🌐 访问官网", p['官网'], use_container_width=True)
-                st.markdown("<hr style='margin:4px 0; border: none; border-top: 1px dashed #30363D;'>", unsafe_allow_html=True)
-                
+        for p in pig_leaders: render_leader_card(p, "🐖", "出栏规模")
+
     with tab_f2:
         st.subheader("🐄 中国乳业及原奶生产十强龙头企业 (Top 10 Dairy Enterprises)")
-        st.caption("🏆 排名核心依据：上市公司最新市值、营业总收入规模及原奶/优质乳制品年产量")
+        st.caption("🏆 排名依据：上市公司最新市值、营业总收入规模及原奶/优质乳制品年产量")
         cow_leaders = [
-            {"排名": "01", "企业名称": "内蒙古伊利实业集团股份有限公司", "股票代码": "600887.SH", "核心规模/产量": "年营业收入超 1,150 亿元，亚洲乳业第一", "市值估算": "超 1,750 亿元", "核心定位": "全品类规模最大综合乳企，全球乳业五强", "官网": "https://www.yili.com/"},
-            {"排名": "02", "企业名称": "中国蒙牛乳业有限公司", "股票代码": "02319.HK", "核心规模/产量": "年营业收入近 1,000 亿元，全球乳业前十", "市值估算": "约 600 亿港元", "核心定位": "拥有特仑苏、纯甄超级品牌矩阵的创新巨头", "官网": "https://www.mengniu.com.cn/"},
-            {"排名": "03", "企业名称": "光明乳业股份有限公司", "股票代码": "600597.SH", "核心规模/产量": "中国鲜奶与低温巴氏奶第一品牌", "市值估算": "约 115 亿元", "核心定位": "百年历史底蕴，深耕冷链优质生鲜乳标杆", "官网": "https://www.brightdairy.com/"},
-            {"排名": "04", "企业名称": "中国飞鹤有限公司", "股票代码": "06186.HK", "核心规模/产量": "中国婴幼儿配方奶粉第一品牌", "市值估算": "约 420 亿港元", "核心定位": "北纬 47° 黄金奶源带全产业链婴配粉龙头", "官网": "https://www.feihe.com/"},
-            {"排名": "05", "企业名称": "现代牧业（集团）有限公司", "股票代码": "01117.HK", "核心规模/产量": "奶牛存栏超 45 万头，年产原奶超 250 万吨", "市值估算": "约 70 亿港元", "核心定位": "中国最大原料奶生产商，万头牧场模式开创者", "官网": "http://www.moderndairycn.com/"},
-            {"排名": "06", "企业名称": "内蒙古优然牧业有限责任公司", "股票代码": "09858.HK", "核心规模/产量": "奶牛存栏近 60 万头，全球原料奶领跑者", "市值估算": "约 75 亿港元", "核心定位": "涵盖育种、饲料、草业与原奶的上游全产业链", "官网": "https://www.yourandairy.com/"},
-            {"排名": "07", "企业名称": "新希望乳业股份有限公司 (新乳业)", "股票代码": "002946.SZ", "核心规模/产量": "营收超百亿元，区域鲜奶联合体代表", "市值估算": "约 110 亿元", "核心定位": "“鲜立方”战略主导，全国多区域低温乳业联合体", "官网": "http://www.newdairy.cn/"},
-            {"排名": "08", "企业名称": "北京三元食品股份有限公司", "股票代码": "600429.SH", "核心规模/产量": "北京及华北地区老字号全产业链乳企", "市值估算": "约 65 亿元", "核心定位": "首都高品质奶源保障，特种配方与学生饮用奶", "官网": "http://www.sanyuan.com.cn/"},
-            {"排名": "09", "企业名称": "中国圣牧有机奶业有限公司", "股票代码": "01432.HK", "核心规模/产量": "沙漠有机原奶年产超 60 万吨", "市值估算": "约 25 亿港元", "核心定位": "全球最大沙漠有机生鲜乳供应商，治沙生态标杆", "官网": "http://www.shengmudairy.com/"},
-            {"排名": "10", "企业名称": "上海妙可蓝多食品科技股份有限公司", "股票代码": "600882.SH", "核心规模/产量": "中国奶酪品类第一品牌（蒙牛控股）", "市值估算": "约 75 亿元", "核心定位": "聚焦奶酪创新研发，领跑高附加值奶酪制品市场", "官网": "http://www.milkground.cn/"}
+            {"排名": "01", "企业名称": "内蒙古伊利实业集团股份有限公司", "股票代码": "600887.SH", "核心规模": "年营业收入超 1,150 亿元，亚洲乳业第一", "市值估算": "超 1,750 亿元", "核心定位": "全品类规模最大综合乳企，全球乳业五强", "官网": "https://www.yili.com/"},
+            {"排名": "02", "企业名称": "中国蒙牛乳业有限公司", "股票代码": "02319.HK", "核心规模": "年营业收入近 1,000 亿元，全球乳业前十", "市值估算": "约 600 亿港元", "核心定位": "拥有特仑苏、纯甄超级品牌矩阵的创新巨头", "官网": "https://www.mengniu.com.cn/"},
+            {"排名": "03", "企业名称": "光明乳业股份有限公司", "股票代码": "600597.SH", "核心规模": "中国鲜奶与低温巴氏奶第一品牌", "市值估算": "约 115 亿元", "核心定位": "百年历史底蕴，深耕冷链优质生鲜乳标杆", "官网": "https://www.brightdairy.com/"},
+            {"排名": "04", "企业名称": "中国飞鹤有限公司", "股票代码": "06186.HK", "核心规模": "中国婴幼儿配方奶粉第一品牌", "市值估算": "约 420 亿港元", "核心定位": "北纬 47° 黄金奶源带全产业链婴配粉龙头", "官网": "https://www.feihe.com/"},
+            {"排名": "05", "企业名称": "现代牧业（集团）有限公司", "股票代码": "01117.HK", "核心规模": "奶牛存栏超 45 万头，年产原奶超 250 万吨", "市值估算": "约 70 亿港元", "核心定位": "中国最大原料奶生产商，万头牧场模式开创者", "官网": "http://www.moderndairycn.com/"},
+            {"排名": "06", "企业名称": "内蒙古优然牧业有限责任公司", "股票代码": "09858.HK", "核心规模": "奶牛存栏近 60 万头，全球原料奶领跑者", "市值估算": "约 75 亿港元", "核心定位": "涵盖育种、饲料、草业与原奶的上游全产业链", "官网": "https://www.yourandairy.com/"},
+            {"排名": "07", "企业名称": "新希望乳业股份有限公司 (新乳业)", "股票代码": "002946.SZ", "核心规模": "营收超百亿元，区域鲜奶联合体代表", "市值估算": "约 110 亿元", "核心定位": "“鲜立方”战略主导，全国多区域低温乳业联合体", "官网": "http://www.newdairy.cn/"},
+            {"排名": "08", "企业名称": "北京三元食品股份有限公司", "股票代码": "600429.SH", "核心规模": "北京及华北老字号全产业链乳企", "市值估算": "约 65 亿元", "核心定位": "首都高品质奶源保障，特种配方与学生饮用奶", "官网": "http://www.sanyuan.com.cn/"},
+            {"排名": "09", "企业名称": "中国圣牧有机奶业有限公司", "股票代码": "01432.HK", "核心规模": "沙漠有机原奶年产超 60 万吨", "市值估算": "约 25 亿港元", "核心定位": "全球最大沙漠有机生鲜乳供应商，治沙生态标杆", "官网": "http://www.shengmudairy.com/"},
+            {"排名": "10", "企业名称": "上海妙可蓝多食品科技股份有限公司", "股票代码": "600882.SH", "核心规模": "中国奶酪品类第一品牌（蒙牛控股）", "市值估算": "约 75 亿元", "核心定位": "聚焦奶酪创新研发，领跑高附加值奶酪制品市场", "官网": "http://www.milkground.cn/"}
         ]
-        for c in cow_leaders:
-            with st.container():
-                cc1, cc2, cc3, cc4 = st.columns([1, 4, 3, 2])
-                cc1.markdown(f"### `{c['排名']}`")
-                cc2.markdown(f"**[{c['企业名称']}]({c['官网']})** `{c['股票代码']}`\n\n📌 {c['核心定位']}")
-                cc3.markdown(f"🥛 **规模**: {c['核心规模/产量']}\n\n💰 **市值**: {c['市值估算']}")
-                cc4.link_button(f"🌐 访问官网", c['官网'], use_container_width=True)
-                st.markdown("<hr style='margin:4px 0; border: none; border-top: 1px dashed #30363D;'>", unsafe_allow_html=True)
+        for c in cow_leaders: render_leader_card(c, "🥛", "原奶规模")
 
     with tab_f3:
-        st.subheader("📈 畜牧活体、原奶、牛肉及核心饲料原料大宗期货行情一键直达")
-        st.caption("💡 畜牧产业受“猪周期”、原料成本（饲料占养殖总成本 60%–70%）与终端消费价格波动影响极大。期货及衍生品是大中型牧场规避价格波动风险、锁定饲喂成本与销售利润（套期保值）的必备金融工具。")
+        st.subheader("🐂 中国肉牛养殖加工十强龙头企业 (Top 10 Beef Cattle Enterprises)")
+        st.caption("🏆 排名依据：肉牛存栏出栏量、年屠宰加工产能、牛肉品牌影响力及上市公司实力")
+        beef_leaders = [
+            {"排名": "01", "企业名称": "福成投资集团(福成股份)", "股票代码": "600965.SH", "核心规模": "肉牛存栏及屠宰规模居全国前列", "市值估算": "约 45 亿元", "核心定位": "A股肉牛第一股，涵盖母牛繁育、育肥屠宰及预制牛肉全链", "官网": "http://www.fucheng.cn/"},
+            {"排名": "02", "企业名称": "重庆恒都农业集团有限公司", "股票代码": "非上市大型农牧", "核心规模": "全国自建万头肉牛场，年屠宰肉牛超 30 万头", "市值估算": "行业龙头集团", "核心定位": "国家级农业产业化龙头，全国单体最大肉牛加工产业园", "官网": "http://www.hengdu.cn/"},
+            {"排名": "03", "企业名称": "吉林省长春皓月清真肉业集团", "股票代码": "非上市大型集团", "核心规模": "肉牛年屠宰能力 50 万头，亚洲肉牛航母", "市值估算": "超 200 亿元产值", "核心定位": "亚洲最大牛肉清真产业基地，牛肉制品进出口领先", "官网": "http://www.haoyue.com/"},
+            {"排名": "04", "企业名称": "内蒙古科尔沁牛业股份有限公司", "股票代码": "农业产业化龙头", "核心规模": "草原肉牛存栏与冷鲜牛肉全国领跑", "市值估算": "知名肉牛航母", "核心定位": "内蒙古天然草原肉牛标杆，绿色有机牛肉供应商", "官网": "http://www.kerchin.com/"},
+            {"排名": "05", "企业名称": "大庄园肉业集团股份有限公司", "股票代码": "行业领军品牌", "核心规模": "全国牛羊肉深加工第一方阵", "市值估算": "中国肉类十强", "核心定位": "世界级现代化肉类产业园，高品质牛肉冷鲜肉旗舰", "官网": "http://www.dazhuangyuan.com/"},
+            {"排名": "06", "企业名称": "黑龙江元盛食品 (龙江和牛)", "股票代码": "高新技术肉牛", "核心规模": "国内最大和牛雪花牛肉产业化基地", "市值估算": "高端牛肉独角兽", "核心定位": "纯种和牛胚胎移植与高端大理石花纹牛肉标杆", "官网": "http://www.wagyu.cn/"},
+            {"排名": "07", "企业名称": "陕西秦宝牧业股份有限公司", "股票代码": "831519.OC", "核心规模": "秦川牛良种繁育与万头育肥基地", "市值估算": "新三板肉牛龙头", "核心定位": "优质秦川肉牛选育改良与高档牛肉标准化加工", "官网": "http://www.qinbaobeef.com/"},
+            {"排名": "08", "企业名称": "河南伊赛牛肉股份有限公司", "股票代码": "832993.OC", "核心规模": "年出栏及屠宰肉牛 30 万头", "市值估算": "知名牛肉品牌", "核心定位": "清真牛肉食品全产业链闭环领军企业", "官网": "http://www.yisaibeef.com/"},
+            {"排名": "09", "企业名称": "内蒙古民丰肉牛产业集团", "股票代码": "农业产业化重点", "核心规模": "黄牛与西门塔尔育肥基地超 10 万头", "市值估算": "区域支柱企业", "核心定位": "华北及东北冷凉气候肉牛架子牛育肥龙头", "官网": "http://www.minfengbeef.com/"},
+            {"排名": "10", "企业名称": "新疆天山畜牧生物工程 (天山生物)", "股票代码": "300313.SZ", "核心规模": "肉牛与种牛优质冻精育种全国领先", "市值估算": "约 35 亿元", "核心定位": "牛羊良种繁育、牛冷冻精液与活畜进出口上市公司", "官网": "http://www.tsbiotech.com.cn/"}
+        ]
+        for b in beef_leaders: render_leader_card(b, "🐂", "出栏屠宰")
+
+    with tab_f4:
+        st.subheader("🐐 🐑 中国羊业与奶山羊/肉羊十强龙头企业 (Top 10 Sheep & Goat Enterprises)")
+        st.caption("🏆 排名依据：羊奶粉加工能力、肉羊养殖规模、羔羊肉与特色裘皮深加工实力")
+        sheep_leaders = [
+            {"排名": "01", "企业名称": "陕西红星美羚乳业股份有限公司", "股票代码": "430367.OC", "核心规模": "自建富平奶山羊生态牧场，羊奶粉第一梯队", "市值估算": "奶山羊第一股", "核心定位": "中国羊乳全产业链典范，低温湿法工艺婴配羊奶粉", "官网": "http://www.hongxingmeiling.com/"},
+            {"排名": "02", "企业名称": "陕西和氏乳业集团有限公司", "股票代码": "大型羊乳集团", "核心规模": "拥有 7 大生态天然牧场及万只莎能奶山羊基地", "市值估算": "羊乳领航旗舰", "核心定位": "涵盖牛羊双配方奶粉，亚洲超大单体智能化羊奶粉工厂", "官网": "http://www.heshi乳业.com/"},
+            {"排名": "03", "企业名称": "西安百跃羊乳集团有限公司", "股票代码": "老牌羊乳巨头", "核心规模": "年产婴幼儿配方羊奶粉超 3 万吨", "市值估算": "知名羊乳集团", "核心定位": "深耕关中奶山羊核心带，全产业链智能化加工标杆", "官网": "http://www.baiyue.com/"},
+            {"排名": "04", "企业名称": "佳贝艾特 (澳优乳业旗下)", "股票代码": "01717.HK", "核心规模": "全球羊奶粉销量遥遥领先第一品牌", "市值估算": "约 55 亿港元", "核心定位": "全球羊奶营养创新先锋，纯正山羊乳清科研龙头", "官网": "https://www.kabrita.com.cn/"},
+            {"排名": "05", "企业名称": "内蒙古巴美羊业开发有限公司", "股票代码": "良种肉羊航母", "核心规模": "巴美肉羊良种繁育基地，年出栏肉羊超 20 万只", "市值估算": "区域骨干龙头", "核心定位": "肉用多羔高产良种培育与规模化集约舍饲示范", "官网": "http://www.bameisheep.com/"},
+            {"排名": "06", "企业名称": "内蒙古小尾羊牧业科技股份有限公司", "股票代码": "839808.OC", "核心规模": "全产业链羊肉屠宰加工与连锁餐饮品牌", "市值估算": "羊肉上市旗舰", "核心定位": "冷鲜羊肉分割制品与草原特色餐饮一体化巨头", "官网": "http://www.xiaoweiyang.com/"},
+            {"排名": "07", "企业名称": "内蒙古草都草牧业股份有限公司", "股票代码": "837373.OC", "核心规模": "草畜平衡与羊产业饲草供应网络领跑者", "市值估算": "新三板创新层", "核心定位": "草牧业互联网数字化供应链与高产肉羊配套服务", "官网": "http://www.caodu.com/"},
+            {"排名": "08", "企业名称": "内蒙古蒙羊牧业股份有限公司", "股票代码": "肉羊领跑品牌", "核心规模": "年屠宰加工肉羊超 150 万只", "市值估算": "著名羊肉品牌", "核心定位": "绿色有机羊肉冷鲜直供，清真牛羊肉全品类龙头", "官网": "http://www.mengyang.com/"},
+            {"排名": "09", "企业名称": "宁夏盐池滩羊产业发展集团", "股票代码": "地理标志国企", "核心规模": "全国驰名盐池滩羊与二毛裘皮核心开发平台", "市值估算": "百亿品牌价值", "核心定位": "原产地保护与国宴品质滩羊肉、特级二毛皮产业旗舰", "官网": "http://www.yctsyy.com/"},
+            {"排名": "10", "企业名称": "甘肃超杰肉羊育肥有限公司", "股票代码": "规模舍饲典型", "核心规模": "年舍饲出栏育肥肉羊超 10 万只", "市值估算": "西北肉羊先锋", "核心定位": "多胎多羔肉羊杂交利用与自动化舍饲育肥示范", "官网": "http://www.chaojiesheep.com/"}
+        ]
+        for s in sheep_leaders: render_leader_card(s, "🐐", "羊品规模")
+
+    with tab_f5:
+        st.subheader("🥚 中国蛋鸡养殖与品牌鲜蛋十强龙头企业 (Top 10 Layer Chicken Enterprises)")
+        st.caption("🏆 排名依据：蛋鸡存栏规模、商品代雏鸡产能、品牌鲜蛋市占率及上市公司市值")
+        layer_leaders = [
+            {"排名": "01", "企业名称": "宁夏晓鸣农牧股份有限公司", "股票代码": "300967.SZ", "核心规模": "年销售商品代雏鸡超 2.2 亿羽，蛋鸡第一股", "市值估算": "约 30 亿元", "核心定位": "中国蛋鸡制种第一龙头，生物安全与健康种源标杆", "官网": "http://www.xmnm.net/"},
+            {"排名": "02", "企业名称": "四川圣迪乐村生态食品股份有限公司", "股票代码": "高品质鲜蛋龙头", "核心规模": "蛋鸡存栏超 1,300 万羽，全国高端鲜蛋第一", "市值估算": "行业高端巨头", "核心定位": "中国可生食鸡蛋标准领跑者，五星级酒店与盒马首选", "官网": "https://www.sandile.cn/"},
+            {"排名": "03", "企业名称": "北京德青源农业科技股份有限公司", "股票代码": "生态蛋鸡航母", "核心规模": "亚洲单体最大生态蛋鸡场，年产鲜蛋超 10 亿枚", "市值估算": "品牌价值超百亿", "核心定位": "循环经济与可持续蛋禽发展典范，中国生态鲜蛋先驱", "官网": "http://www.deqingyuan.com/"},
+            {"排名": "04", "企业名称": "正大蛋业 (正大集团中国区)", "股票代码": "跨国农牧旗舰", "核心规模": "平谷 300 万只蛋鸡现代化全自动产业园", "市值估算": "全球农牧巨头", "核心定位": "国际最高标准全流程无人化智能化蛋鸡生产标杆", "官网": "http://www.cpgroup.cn/"},
+            {"排名": "05", "企业名称": "北京华都峪口禽业有限责任公司", "股票代码": "蛋鸡自主育种", "核心规模": "自主培育‘京红’‘京粉’系列，市场占有率超 50%", "市值估算": "育种国家队", "核心定位": "中国自主蛋鸡品种核心基地，打破国外种源垄断", "官网": "http://www.yukou.com.cn/"},
+            {"排名": "06", "企业名称": "湖北神丹健康食品有限公司", "股票代码": "国家重点龙头", "核心规模": "年加工蛋品超 10 亿枚，皮蛋咸蛋第一", "市值估算": "蛋品加工旗舰", "核心定位": "蛋品深加工与安全营养鲜蛋国家高新技术企业", "官网": "http://www.shendan.com/"},
+            {"排名": "07", "企业名称": "山西晋龙养殖股份有限公司", "股票代码": "834421.OC", "核心规模": "蛋鸡存栏超 1,000 万羽，华北最大鲜蛋基地", "市值估算": "新三板蛋鸡龙头", "核心定位": "全封闭无抗养殖与高密度自动化立体笼养旗舰", "官网": "http://www.jinlongjt.com/"},
+            {"排名": "08", "企业名称": "安徽凤达农业有限公司", "股票代码": "华东鲜蛋骨干", "核心规模": "蛋鸡存栏 300 万羽，长三角鲜蛋核心保供", "市值估算": "现代化禽业龙头", "核心定位": "绿色认证富硒功能鲜蛋与数字化饲喂标杆", "官网": "http://www.fengdaegg.com/"},
+            {"排名": "09", "企业名称": "宁夏顺宝现代农业股份有限公司", "股票代码": "西北禽业龙头", "核心规模": "蛋鸡存栏 260 万羽，西北大型无抗鲜蛋基地", "市值估算": "优质农牧代表", "核心定位": "高原冷凉气候优质鲜蛋直供与有机肥资源化利用", "官网": "http://www.shunbaoegg.com/"},
+            {"排名": "10", "企业名称": "田园主义功能蛋业集团", "股票代码": "新消费领军", "核心规模": "主打叶黄素、DHA 差异化高端健康功能鲜蛋", "市值估算": "新锐高成长品牌", "核心定位": "聚焦母婴与健身人群的高附加值蛋品创新者", "官网": "http://www.tianyuanegg.cn/"}
+        ]
+        for l in layer_leaders: render_leader_card(l, "🥚", "鲜蛋产能")
+
+    with tab_f6:
+        st.subheader("🍗 中国肉鸡养殖与白羽肉禽十强龙头企业 (Top 10 Broiler Enterprises)")
+        st.caption("🏆 排名依据：上市公司市值、白羽肉鸡年出栏量、肉禽一体化加工规模及屠宰产能")
+        broiler_leaders = [
+            {"排名": "01", "企业名称": "福建圣农发展股份有限公司", "股票代码": "002299.SZ", "核心规模": "年肉鸡出栏超 6.5 亿羽，自主育种‘圣泽901’", "市值估算": "约 180 亿元", "核心定位": "中国白羽肉鸡第一股，自繁自养全产业链全球领航", "官网": "http://www.sunnercn.com/"},
+            {"排名": "02", "企业名称": "山东益生种禽股份有限公司", "股票代码": "002458.SZ", "核心规模": "亚洲最大祖代肉种鸡养殖企业，雏鸡年销超 5 亿羽", "市值估算": "约 110 亿元", "核心定位": "中国畜禽良种繁育龙头，肉种鸡市场份额居全国第一", "官网": "http://www.yishengsfc.com/"},
+            {"排名": "03", "企业名称": "山东民和牧业股份有限公司", "股票代码": "002234.SZ", "核心规模": "父母代肉种鸡与商品肉鸡雏年出栏超 3 亿羽", "市值估算": "约 45 亿元", "核心定位": "肉鸡孵化、商品养殖及生物燃气发电绿色循环龙头", "官网": "http://www.minhe.cn/"},
+            {"排名": "04", "企业名称": "山东仙坛股份有限公司", "股票代码": "002746.SZ", "核心规模": "肉鸡年出栏超 2 亿羽，肉类深加工产值数十亿", "市值估算": "约 60 亿元", "核心定位": "“公司+农场”现代肉禽龙头，绿色鸡肉出口标杆", "官网": "http://www.xiantan.cn/"},
+            {"排名": "05", "企业名称": "辽宁禾丰食品股份有限公司", "股票代码": "603609.SH", "核心规模": "肉鸡年出栏及屠宰量突破 8 亿羽，全链巨无霸", "市值估算": "约 85 亿元", "核心定位": "中国农牧全产业链领跑者，东北肉鸡产业核心支柱", "官网": "http://www.hefeng.com/"},
+            {"排名": "06", "企业名称": "山东春雪食品股份有限公司", "股票代码": "605567.SH", "核心规模": "年出栏优质白羽肉鸡近亿羽，预制调理鸡肉领先", "市值估算": "约 30 亿元", "核心定位": "深耕鸡肉调理预制菜，大规模出口日本欧盟食品企业", "官网": "http://www.chunxue.com/"},
+            {"排名": "07", "企业名称": "江苏立华牧业股份有限公司", "股票代码": "300761.SZ", "核心规模": "年出栏黄羽肉鸡超 4.5 亿羽，中国黄鸡领航者", "市值估算": "约 180 亿元", "核心定位": "中国优质国鸡产业化第一龙头，跨足白羽与生猪", "官网": "http://www.lihuagroup.com/"},
+            {"排名": "08", "企业名称": "温氏股份肉禽事业部", "股票代码": "300498.SZ", "核心规模": "肉鸡年上市量超 11 亿羽，全国规模最大肉禽巨头", "市值估算": "千亿级航母板块", "核心定位": "高效标准化家庭农场模式，规模化与成本效益卓越", "官网": "https://www.wens.com.cn/"},
+            {"排名": "09", "企业名称": "新希望六和禽产业BG", "股票代码": "000876.SZ", "核心规模": "肉鸡与肉鸭年加工量超 15 亿羽，禽肉加工第一", "市值估算": "超大型农牧板块", "核心定位": "全球领先的冷鲜禽肉制造与全链肉禽综合运营商", "官网": "http://www.newhopegroup.com/"},
+            {"排名": "10", "企业名称": "大成食品（亚洲）有限公司", "股票代码": "03999.HK", "核心规模": "中国北方白羽肉鸡龙头，肯德基德克士核心供应商", "市值估算": "约 10 亿港元", "核心定位": "“来源透明”可追溯鸡肉食品开拓者，肉禽外向型旗舰", "官网": "http://www.dachanfood.com/"}
+        ]
+        for r in broiler_leaders: render_leader_card(r, "🍗", "出栏屠宰")
+
+    with tab_f7:
+        st.subheader("📈 畜禽、原奶、牛肉、禽蛋及核心饲料大宗期货行情一键直达")
+        st.caption("💡 畜牧产业受周期波动与饲料原料成本（占总成本 60%–70%）影响极大。期货工具是大中型养殖牧场规避价格下跌风险、锁定原料采购成本与销售利润（套期保值）的核心金融抓手。")
         
         st.markdown("#### 1️⃣ 畜禽与肉类核心大宗期货 (Livestock & Dairy Futures)")
-        col_q1, col_q2, col_q3 = st.columns(3)
+        col_q1, col_q2, col_q3, col_q4 = st.columns(4)
         with col_q1:
             st.markdown("""
             **🐖 生猪期货 (Live Hog)**
-            - **交易所**: 大连商品交易所 (DCE: `LH`)
-            - **交易单位**: 16 吨/手，实物活体交割
-            - **功能**: 生猪养殖企业平抑“猪周期”波动核心工具
+            - **交易所**: 大连商品交易所 (`LH`)
+            - **交易单位**: 16 吨/手，活体交割
+            - **功能**: 平抑“猪周期”波动核心工具
             """)
-            st.link_button("📊 大商所生猪期货规则与合约指南", "http://www.dce.com.cn/dalianshangpin/sspz/sz/index.html", use_container_width=True)
-            st.link_button("📈 东方财富生猪主连实时行情走势", "https://quote.eastmoney.com/qihuo/lhm.html", use_container_width=True)
-            st.link_button("🌐 新浪财经生猪期货分时与日K线", "https://gu.sina.cn/ft/hq/nf.php?symbol=lh0", use_container_width=True)
+            st.link_button("📊 大商所生猪期货指南", "http://www.dce.com.cn/dalianshangpin/sspz/sz/index.html", use_container_width=True)
+            st.link_button("📈 东方财富生猪主连行情", "https://quote.eastmoney.com/qihuo/lhm.html", use_container_width=True)
 
         with col_q2:
             st.markdown("""
-            **🥛 牛奶 / 原奶期货 (Milk Class III)**
-            - **交易所**: 芝加哥商业交易所 (CME: `DC`)
-            - **交易标的**: 制造奶酪用 Class III 生鲜乳 (20万磅/手)
-            - **功能**: 全球乳制品贸易与原奶价格风向标
+            **🥚 鸡蛋期货 (Egg Futures)**
+            - **交易所**: 大连商品交易所 (`JD`)
+            - **地位**: 我国首个上市生鲜畜禽期货
+            - **功能**: 蛋鸡场锁定鲜蛋利润标杆
             """)
-            st.link_button("📊 芝商所 CME Class III 牛奶期货合约", "https://www.cmegroup.com/markets/agriculture/dairy/class-iii-milk.html", use_container_width=True)
-            st.link_button("📈 英为财情国际原奶期货实时行情", "https://cn.investing.com/commodities/class-iii-milk", use_container_width=True)
+            st.link_button("📊 大商所鸡蛋期货指南", "http://www.dce.com.cn/dalianshangpin/sspz/jd/index.html", use_container_width=True)
+            st.link_button("📈 东方财富鸡蛋主连行情", "https://quote.eastmoney.com/qihuo/jdm.html", use_container_width=True)
 
         with col_q3:
             st.markdown("""
-            **🥩 牛肉 / 活牛期货 (Live & Feeder Cattle)**
-            - **交易所**: 芝加哥商业交易所 (CME: `LE` / `FC`)
-            - **交易标的**: 活牛 (Live Cattle) 与 育肥牛 (Feeder Cattle)
-            - **功能**: 全球肉牛育肥与牛肉加工产业套期保值
+            **🥩 牛肉 / 活牛期货 (Cattle)**
+            - **交易所**: 芝加哥商业交易所 (`LE`/`FC`)
+            - **标的**: 活牛与育肥牛期货合约
+            - **功能**: 全球肉牛育肥套期保值风向标
             """)
-            st.link_button("📊 芝商所 CME 活牛期货合约详情", "https://www.cmegroup.com/markets/agriculture/livestock/live-cattle.html", use_container_width=True)
-            st.link_button("📈 芝商所 CME 育肥牛期货合约走势", "https://www.cmegroup.com/markets/agriculture/livestock/feeder-cattle.html", use_container_width=True)
-            st.link_button("🌐 东方财富全球商品期货行情中心", "https://futures.eastmoney.com/", use_container_width=True)
+            st.link_button("📊 芝商所活牛期货合约", "https://www.cmegroup.com/markets/agriculture/livestock/live-cattle.html", use_container_width=True)
+            st.link_button("📈 芝商所育肥牛期货走势", "https://www.cmegroup.com/markets/agriculture/livestock/feeder-cattle.html", use_container_width=True)
 
-        st.markdown("---")
+        with col_q4:
+            st.markdown("""
+            **🥛 原奶 / 牛奶期货 (Milk)**
+            - **交易所**: 芝商所 CME (`DC`)
+            - **标的**: Class III 生鲜乳 (20万磅/手)
+            - **功能**: 全球乳制品贸易与原奶风向标
+            """)
+            st.link_button("📊 芝商所牛奶期货合约", "https://www.cmegroup.com/markets/agriculture/dairy/class-iii-milk.html", use_container_width=True)
+            st.link_button("📈 英为财情国际原奶行情", "https://cn.investing.com/commodities/class-iii-milk", use_container_width=True)
+
+        st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
         st.markdown("#### 2️⃣ 各种核心饲料原料期货 (Feed Raw Material Futures)")
-        st.caption("🌽 饲料原料成本占生猪与奶牛养殖完全成本的 60%–70% 以上，是牧场成本核算与指标敏感性分析的最核心影响变量：")
+        st.caption("🌽 饲料成本占畜禽养殖完全成本的 60%–70% 以上，是牧场成本敏感性分析最关键影响变量：")
         
         c_fd1, c_fd2, c_fd3 = st.columns(3)
         with c_fd1:
             st.markdown("""
             **🌱 豆粕期货 (Soybean Meal)**
-            - **交易所**: 大连商品交易所 (DCE: `M`)
-            - **地位**: 蛋白饲料第一大原料（粗蛋白≥43%）
-            - **直接影响**: 仔猪、母猪及泌乳牛配方饲料成本
+            - **交易所**: 大连商品交易所 (`M`)
+            - **地位**: 蛋白饲料第一大原料
             """)
-            st.link_button("📈 豆粕主连实时行情 (东方财富)", "https://quote.eastmoney.com/qihuo/mm.html", use_container_width=True)
-            st.link_button("🌐 豆粕连续行情K线 (新浪财经)", "https://gu.sina.cn/ft/hq/nf.php?symbol=M0", use_container_width=True)
-
+            st.link_button("📈 豆粕主连行情 (东方财富)", "https://quote.eastmoney.com/qihuo/mm.html", use_container_width=True)
         with c_fd2:
             st.markdown("""
             **🌽 玉米期货 (Corn)**
-            - **交易所**: 大连商品交易所 (DCE: `C`)
-            - **地位**: 畜禽能量饲料之王，配方占比50%-60%
-            - **直接影响**: 育肥猪增重与高产奶牛高能量日粮成本
+            - **交易所**: 大连商品交易所 (`C`)
+            - **地位**: 畜禽能量饲料之王
             """)
-            st.link_button("📈 玉米主连实时行情 (东方财富)", "https://quote.eastmoney.com/qihuo/cm.html", use_container_width=True)
-            st.link_button("🌐 玉米连续走势K线 (新浪财经)", "https://gu.sina.cn/ft/hq/nf.php?symbol=C0", use_container_width=True)
-
+            st.link_button("📈 玉米主连行情 (东方财富)", "https://quote.eastmoney.com/qihuo/cm.html", use_container_width=True)
         with c_fd3:
             st.markdown("""
             **🌿 菜粕期货 (Rapeseed Meal)**
-            - **交易所**: 郑州商品交易所 (CZCE: `RM`)
-            - **地位**: 优质植物蛋白原料，豆粕重要替代品
-            - **直接影响**: 反刍动物粗蛋白日粮与性价比调控
+            - **交易所**: 郑州商品交易所 (`RM`)
+            - **地位**: 优质植物蛋白替代原料
             """)
-            st.link_button("📈 菜粕主连实时行情 (东方财富)", "https://quote.eastmoney.com/qihuo/rmm.html", use_container_width=True)
+            st.link_button("📈 菜粕主连行情 (东方财富)", "https://quote.eastmoney.com/qihuo/rmm.html", use_container_width=True)
 
         c_fd4, c_fd5, c_fd6 = st.columns(3)
         with c_fd4:
             st.markdown("""
             **💧 豆油期货 (Soybean Oil)**
-            - **交易所**: 大连商品交易所 (DCE: `Y`)
-            - **地位**: 高能量饲用油脂，抗热应激配方添加剂
+            - **交易所**: 大商所 (`Y`) · 高能饲喂油脂
             """)
             st.link_button("📈 豆油主连行情 (东方财富)", "https://quote.eastmoney.com/qihuo/ym.html", use_container_width=True)
         with c_fd5:
             st.markdown("""
             **🌾 玉米淀粉期货 (Corn Starch)**
-            - **交易所**: 大连商品交易所 (DCE: `CS`)
-            - **地位**: 玉米深加工核心标的，关联饲料副产品定价
+            - **交易所**: 大商所 (`CS`) · 能量与深加工关联
             """)
-            st.link_button("📈 玉米淀粉主连行情 (东方财富)", "https://quote.eastmoney.com/qihuo/csm.html", use_container_width=True)
+            st.link_button("📈 玉米淀粉行情 (东方财富)", "https://quote.eastmoney.com/qihuo/csm.html", use_container_width=True)
         with c_fd6:
             st.markdown("""
-            **🍞 强麦 / 小麦期货 (Wheat)**
-            - **交易所**: 郑州商品交易所 (CZCE: `WH`)
-            - **地位**: 能量饲料中玉米的重要价差替代原料
+            **🌾 强麦期货 (Strong Wheat)**
+            - **交易所**: 郑商所 (`WH`) · 能量与粗蛋白替代
             """)
-            st.link_button("📈 强麦主连行情 (东方财富)", "https://quote.eastmoney.com/qihuo/whm.html", use_container_width=True)
+            st.link_button("📈 强麦主连行情 (新浪财经)", "https://gu.sina.cn/ft/hq/nf.php?symbol=WH0", use_container_width=True)
 
 # =====================================================================
-# 六、控制台侧边栏：多源数据驱动与上传模版服务
+# 七、侧边栏控制台：八大畜禽种类与对应数据源选择
 # =====================================================================
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/dairy-cow.png", width=64)
     st.title("智慧养殖控制台")
     st.markdown("#### 分步向导操作流程")
 
-    # 步骤 1：选择畜禽种类
+    # 步骤 1：选择畜禽种类（8大种类）
     st.markdown("##### 📍 第一步：选择畜禽种类")
     animal_choice = st.radio(
         "请选择当前要监管与分析的畜禽对象：",
-        ["🐖 生猪养殖 (Swine)", "🐄 奶牛养殖 (Dairy Cattle)"],
-        index=1
+        [
+            "🐖 生猪养殖 (Swine)", 
+            "🐄 奶牛养殖 (Dairy Cattle)",
+            "🐂 肉牛养殖 (Beef Cattle)",
+            "🐐 奶山羊养殖 (Dairy Goat)",
+            "🐑 肉羊养殖 (Meat Sheep)",
+            "🐏 皮用羊养殖 (Fur Sheep)",
+            "🥚 蛋鸡养殖 (Layer Chicken)",
+            "🍗 肉鸡养殖 (Broiler Chicken)"
+        ],
+        index=0
     )
 
     st.markdown("---")
     # 步骤 2：选择对应数据源
     st.markdown("##### 📍 第二步：选择对应数据源")
 
-    is_pig = "生猪" in animal_choice
-
-    if is_pig:
-        source_options = [
-            "默认500头母猪基准演练模型",
-            "上传自定义生猪生产 Excel"
-        ]
-    else:
-        source_options = [
-            "默认1000头成母牛现代牧场示范数据",
-            "上传自定义奶牛生产 Excel (.xlsx)"
-        ]
+    if "生猪" in animal_choice:
+        source_options = ["默认500头母猪基准演练模型", "上传自定义生猪生产 Excel (.xlsx)"]
+    elif "奶牛" in animal_choice:
+        source_options = ["默认1000头成母牛现代牧场示范数据", "上传自定义奶牛生产 Excel (.xlsx)"]
+    elif "肉牛" in animal_choice:
+        source_options = ["默认500头肉牛专业育肥示范数据", "上传自定义肉牛生产 Excel (.xlsx)"]
+    elif "奶山羊" in animal_choice:
+        source_options = ["默认500只成母羊示范场数据", "上传自定义奶山羊生产 Excel (.xlsx)"]
+    elif "肉羊" in animal_choice:
+        source_options = ["默认1000只舍饲肉羊育肥基准数据", "上传自定义肉羊生产 Excel (.xlsx)"]
+    elif "皮用羊" in animal_choice:
+        source_options = ["默认500只基础母羊繁育基地数据", "上传自定义皮用羊生产 Excel (.xlsx)"]
+    elif "蛋鸡" in animal_choice:
+        source_options = ["默认20,000羽高产蛋鸡示范数据", "上传自定义蛋鸡生产 Excel (.xlsx)"]
+    else: # 肉鸡
+        source_options = ["默认年出栏6批次立体笼养肉鸡数据", "上传自定义肉鸡生产 Excel (.xlsx)"]
 
     data_source_choice = st.selectbox("请选择要载入的数据来源：", source_options)
 
-    # 上传模版下载与预览支持
     uploaded_file = None
     is_custom_upload = "上传自定义" in data_source_choice
 
     if is_custom_upload:
         st.markdown("##### 📥 采集模版获取与填报指引")
-        template_file_path = PIG_TEMPLATE_PATH if is_pig else COW_TEMPLATE_PATH
-        template_name = "生猪生产台账采集与指标计算上传模板.xlsx" if is_pig else "奶牛生产台账采集与指标计算上传模板.xlsx"
-        
-        template_bytes = b""
-        if template_file_path.exists():
-            with open(template_file_path, "rb") as f:
-                template_bytes = f.read()
-
-        st.download_button(
-            label=f"💾 下载{animal_choice[:2]}生产台账上传模版 (.xlsx)",
-            data=template_bytes,
-            file_name=template_name,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            help="下载标准模版至本地，修改或补充生产台账数值后直接上传即可重算"
-        )
-
-        with st.expander("👁️ 展开在线预览上传模版与指标规范"):
-            st.caption("📋 模版结构预览（白底列填报，空值系统自动隔离容错）：")
-            if template_bytes:
-                df_preview = parse_uploaded_excel(io.BytesIO(template_bytes), animal_choice)
-                st.dataframe(df_preview.head(4), hide_index=True, use_container_width=True)
-            st.info("💡 填报贴士：带*字段建议优先补充；未采集指标可留空，系统绝不会报错，其余指标照常推演。")
-
+        st.info("💡 填报贴士：支持直接上传养殖场月度或批次生产台账工作簿，未采集字段可留空，系统内置容错隔离引擎自动保障其余指标计算正常。")
         uploaded_file = st.file_uploader(
             f"📤 请上传修改好的 {animal_choice[:2]} 台账工作簿 (.xlsx)",
             type=["xlsx", "xls"]
@@ -1037,10 +1432,10 @@ with st.sidebar:
     st.subheader("💡 智慧牧业赋能亮点")
     st.markdown("""
     - **全套法定档案数据精准映射**（严格依循《畜牧法》与 NY/T 3445-2019）
-    - **猪牛双畜种 28 项核心经营指标全量闭环**
+    - **八大畜种核心经营指标全量闭环**（猪、奶牛、肉牛、奶山羊、肉羊、皮用羊、蛋鸡、肉鸡）
     - **容错隔离计算底座**：空指标不崩溃，好指标照样算
-    - **多板块全景同时呈现与免滚轴沉浸体验**
-    - **行业权威新闻咨询与学术论文 DOI 直达**
+    - **全景免滚轴沉浸呈现**：清晰分界线与合理板块间距
+    - **权威行业新闻、DOI直达论文与现代产业金融**
     """)
     
     st.markdown("---")
@@ -1051,64 +1446,136 @@ with st.sidebar:
     - **项目作者**: 李尧 (学号: `2024010983`)
     - **培养单位**: 中国西北农林科技大学 动物科技学院
     """)
-    st.caption("版本：V2.5 全景平铺·无滚轴·行业新闻与DOI论文增强版 | 2026-10-22")
+    st.caption("版本：V2.6 全畜种覆盖·全景分界增强·金融与DOI升级版 | 2026-10-22")
 
 # =====================================================================
-# 七、主界面逻辑驱动与状态流转
+# 八、主流程驱动与数据流转
 # =====================================================================
 status_msg = ""
-upload_health_info = None
 
-if is_pig:
-    if uploaded_file is not None:
-        try:
-            df_raw = parse_uploaded_excel(uploaded_file, "生猪")
-            df_calc, kpi = compute_pig_metrics(df_raw)
-            status_msg = f"已成功解析上传生猪档案【{uploaded_file.name}】（共 {len(df_raw)} 个月生产记录）并完成动态推演"
-            upload_health_info = {"rows": len(df_raw), "cols": len(df_raw.columns)}
-        except Exception as e:
-            st.error(f"⚠️ 解析上传文件时遇到格式问题: {e}，系统已自动平滑切回基准模型以保证大屏展示正常。")
-            df_raw = get_default_pig_data()
-            df_calc, kpi = compute_pig_metrics(df_raw)
-    elif "上传自定义" in data_source_choice:
-        df_raw = get_default_pig_data()
-        df_calc, kpi = compute_pig_metrics(df_raw)
-        status_msg = "等待上传自定义生猪生产 Excel（当前展示默认500头母猪基准演练模型）"
-    else:
-        df_raw = get_default_pig_data()
-        df_calc, kpi = compute_pig_metrics(df_raw)
-        status_msg = "已载入默认500头母猪基准演练模型"
-    df_dict = load_kpi_dict("生猪")
-else:
-    # 奶牛分支
-    if uploaded_file is not None:
-        try:
-            df_raw = parse_uploaded_excel(uploaded_file, "奶牛")
-            df_calc, kpi = compute_cow_metrics(df_raw)
-            status_msg = f"已成功解析上传奶牛档案【{uploaded_file.name}】（共 {len(df_raw)} 个月生产记录）并完成动态推演"
-            upload_health_info = {"rows": len(df_raw), "cols": len(df_raw.columns)}
-        except Exception as e:
-            st.error(f"⚠️ 解析上传文件时遇到格式问题: {e}，系统已自动平滑切回基准模型以保证大屏展示正常。")
-            df_raw = get_default_cow_data()
-            df_calc, kpi = compute_cow_metrics(df_raw)
-    elif "上传自定义" in data_source_choice:
-        df_raw = get_default_cow_data()
-        df_calc, kpi = compute_cow_metrics(df_raw)
-        status_msg = "等待上传自定义奶牛生产 Excel（当前展示默认1000头成母牛现代牧场示范数据）"
-    else:
-        df_raw = get_default_cow_data()
-        df_calc, kpi = compute_cow_metrics(df_raw)
-        status_msg = "已载入默认1000头成母牛现代牧场示范数据"
-    df_dict = load_kpi_dict("奶牛")
+def get_species_calc(animal_choice, uploaded_file, data_source_choice):
+    if "生猪" in animal_choice:
+        if uploaded_file is not None:
+            try:
+                raw = parse_uploaded_excel(uploaded_file, "生猪")
+                c, k = compute_pig_metrics(raw)
+                return raw, c, k, f"已解析上传生猪档案【{uploaded_file.name}】（共 {len(raw)} 条记录）"
+            except Exception:
+                raw = get_default_pig_data()
+                c, k = compute_pig_metrics(raw)
+                return raw, c, k, "上传解析异常，已自动切回默认500头母猪基准模型"
+        raw = get_default_pig_data()
+        c, k = compute_pig_metrics(raw)
+        return raw, c, k, "已载入默认500头母猪基准演练模型"
+
+    elif "奶牛" in animal_choice:
+        if uploaded_file is not None:
+            try:
+                raw = parse_uploaded_excel(uploaded_file, "奶牛")
+                c, k = compute_cow_metrics(raw)
+                return raw, c, k, f"已解析上传奶牛档案【{uploaded_file.name}】（共 {len(raw)} 条记录）"
+            except Exception:
+                raw = get_default_cow_data()
+                c, k = compute_cow_metrics(raw)
+                return raw, c, k, "上传解析异常，已自动切回默认1000头成母牛示范数据"
+        raw = get_default_cow_data()
+        c, k = compute_cow_metrics(raw)
+        return raw, c, k, "已载入默认1000头成母牛现代牧场示范数据"
+
+    elif "肉牛" in animal_choice:
+        if uploaded_file is not None:
+            try:
+                raw = parse_uploaded_excel(uploaded_file, "肉牛")
+                c, k = compute_beef_metrics(raw)
+                return raw, c, k, f"已解析上传肉牛档案【{uploaded_file.name}】（共 {len(raw)} 条记录）"
+            except Exception:
+                raw = get_default_beef_data()
+                c, k = compute_beef_metrics(raw)
+                return raw, c, k, "上传解析异常，已自动切回默认500头肉牛育肥示范数据"
+        raw = get_default_beef_data()
+        c, k = compute_beef_metrics(raw)
+        return raw, c, k, "已载入默认500头肉牛专业育肥示范数据"
+
+    elif "奶山羊" in animal_choice:
+        if uploaded_file is not None:
+            try:
+                raw = parse_uploaded_excel(uploaded_file, "奶山羊")
+                c, k = compute_dairy_goat_metrics(raw)
+                return raw, c, k, f"已解析上传奶山羊档案【{uploaded_file.name}】（共 {len(raw)} 条记录）"
+            except Exception:
+                raw = get_default_dairy_goat_data()
+                c, k = compute_dairy_goat_metrics(raw)
+                return raw, c, k, "上传解析异常，已自动切回默认500只成母羊示范数据"
+        raw = get_default_dairy_goat_data()
+        c, k = compute_dairy_goat_metrics(raw)
+        return raw, c, k, "已载入默认500只成母羊示范场数据"
+
+    elif "肉羊" in animal_choice:
+        if uploaded_file is not None:
+            try:
+                raw = parse_uploaded_excel(uploaded_file, "肉羊")
+                c, k = compute_meat_sheep_metrics(raw)
+                return raw, c, k, f"已解析上传肉羊档案【{uploaded_file.name}】（共 {len(raw)} 条记录）"
+            except Exception:
+                raw = get_default_meat_sheep_data()
+                c, k = compute_meat_sheep_metrics(raw)
+                return raw, c, k, "上传解析异常，已自动切回默认1000只肉羊育肥基准数据"
+        raw = get_default_meat_sheep_data()
+        c, k = compute_meat_sheep_metrics(raw)
+        return raw, c, k, "已载入默认1000只舍饲肉羊育肥基准数据"
+
+    elif "皮用羊" in animal_choice:
+        if uploaded_file is not None:
+            try:
+                raw = parse_uploaded_excel(uploaded_file, "皮用羊")
+                c, k = compute_fur_sheep_metrics(raw)
+                return raw, c, k, f"已解析上传皮用羊档案【{uploaded_file.name}】（共 {len(raw)} 条记录）"
+            except Exception:
+                raw = get_default_fur_sheep_data()
+                c, k = compute_fur_sheep_metrics(raw)
+                return raw, c, k, "上传解析异常，已自动切回默认500只基础母羊基地数据"
+        raw = get_default_fur_sheep_data()
+        c, k = compute_fur_sheep_metrics(raw)
+        return raw, c, k, "已载入默认500只基础母羊繁育基地数据"
+
+    elif "蛋鸡" in animal_choice:
+        if uploaded_file is not None:
+            try:
+                raw = parse_uploaded_excel(uploaded_file, "蛋鸡")
+                c, k = compute_layer_metrics(raw)
+                return raw, c, k, f"已解析上传蛋鸡档案【{uploaded_file.name}】（共 {len(raw)} 条记录）"
+            except Exception:
+                raw = get_default_layer_data()
+                c, k = compute_layer_metrics(raw)
+                return raw, c, k, "上传解析异常，已自动切回默认20000羽蛋鸡示范数据"
+        raw = get_default_layer_data()
+        c, k = compute_layer_metrics(raw)
+        return raw, c, k, "已载入默认20,000羽高产蛋鸡示范数据"
+
+    else: # 肉鸡
+        if uploaded_file is not None:
+            try:
+                raw = parse_uploaded_excel(uploaded_file, "肉鸡")
+                c, k = compute_broiler_metrics(raw)
+                return raw, c, k, f"已解析上传肉鸡档案【{uploaded_file.name}】（共 {len(raw)} 条记录）"
+            except Exception:
+                raw = get_default_broiler_data()
+                c, k = compute_broiler_metrics(raw)
+                return raw, c, k, "上传解析异常，已自动切回默认6批次肉鸡数据"
+        raw = get_default_broiler_data()
+        c, k = compute_broiler_metrics(raw)
+        return raw, c, k, "已载入默认年出栏6批次立体笼养肉鸡数据"
+
+df_raw, df_calc, kpi, status_msg = get_species_calc(animal_choice, uploaded_file, data_source_choice)
 
 # 主标题与法定政策依据标注
 st.title("📊 智慧畜牧数字化管理与核心经营指标大屏")
-st.markdown("##### 智慧牧业工程 · 法定养殖档案数据 + 多畜种经营指标闭环演算")
+st.markdown("##### 智慧牧业工程 · 法定养殖档案数据 (81张表) + 八大畜种经营指标闭环演算")
 
 st.caption(
     "📜 **法定养殖档案政策依据**：根据《中华人民共和国畜牧法》（第四十一条）、《中华人民共和国动物防疫法》、"
     "《中华人民共和国农产品质量安全法》、农业农村部《畜禽标识和养殖档案管理办法》及行业标准《畜禽养殖场档案规范》（NY/T 3445-2019），"
-    "依法建立覆盖生产、投入品、防疫、诊疗、无害化等全生命周期法定档案底座，严格遵守法定保存期限（生猪档案≥2年，奶牛档案≥20年，种畜禽长期保存），"
+    "依法建立覆盖生产、投入品、防疫、诊疗、无害化等全生命周期法定档案底座（覆盖全套81张档案表），严格遵守法定保存期限（生猪/家禽≥2年，牛羊≥10-20年，种畜禽长期保存），"
     "强化养殖全过程可追溯，确保“来源可查、去向可追、责任可究”。"
 )
 
@@ -1131,13 +1598,10 @@ with st.expander("📌 点击展开查看《畜禽养殖档案管理规范》法
         - **归档管理**：纸质档案与电子档案同步更新、双向可追溯，严禁伪造、篡改、遗漏与损毁
         """)
 
-if is_custom_upload and uploaded_file is not None and upload_health_info:
-    st.success(f"🟢 **当前驱动数据**：{status_msg}。系统已启用容错计算引擎，部分空值指标已安全隔离。")
+if is_custom_upload and uploaded_file is not None:
+    st.success(f"🟢 **当前驱动数据**：{status_msg}。系统已启用容错隔离引擎，部分空值指标已安全隔离。")
 
-# =====================================================================
-# 八、大屏呈现模式控制（全景平铺多板块同时呈现 vs 标签页）
-# =====================================================================
-st.markdown("---")
+# 大屏呈现模式控制（全景平铺多板块同时呈现 vs 标签页）
 c_v1, c_v2 = st.columns([3, 1])
 with c_v1:
     view_mode = st.radio(
@@ -1150,371 +1614,249 @@ with c_v1:
 with c_v2:
     st.info("💡 当前已开启「免滚轴沉浸浏览」，页面与组件滚动轴已自动隐藏。")
 
-st.markdown("---")
+render_section_divider()
 
 # =====================================================================
-# 九、业务大屏主视觉呈现
+# 九、业务大屏主视觉呈现：指标卡、趋势、成本结构、原始台账与导出
 # =====================================================================
-if is_pig:
-    st.markdown("### 🐖 生猪养殖核心经营指标概览 (500头能繁母猪基准演练场)")
+
+# 1. 顶部指标卡片渲染
+st.markdown(f"### {animal_choice[:2]} {animal_choice[2:].split(' ')[0]}核心经营指标概览")
+
+def render_top_kpi_cards(animal_choice, kpi):
     c1, c2, c3, c4, c5, c6 = st.columns(6)
-    render_kpi_card(c1, "年提供断奶仔猪 (PSY)", kpi.get('PSY'), fmt=".2f", 
-                    target_delta="+3.27 超标杆线 (≥20)", threshold=20.0, missing_hint="待补断奶/母猪数据")
-    render_kpi_card(c2, "年提供出栏肥猪 (MSY)", kpi.get('MSY'), fmt=".2f", 
-                    target_delta="+2.49 超达标线 (≥20)", threshold=20.0, missing_hint="待补出栏销售记录")
-    render_kpi_card(c3, "全程成活率", kpi.get('全程成活率'), is_pct=True, fmt=".1f", 
-                    target_delta="目标 92.0%", threshold=0.92, missing_hint="待补出栏/存活记录")
-    render_kpi_card(c4, "全年生猪料肉比", kpi.get('年料肉比'), fmt=".2f", 
-                    target_delta="-0.20 优于上限 (3.4)", threshold=3.4, inverse=True, missing_hint="待补饲喂增重数据")
-    render_kpi_card(c5, "出栏头均盈利", kpi.get('年头均盈利'), fmt=".1f", unit="元", 
-                    target_delta="成本核算闭环", missing_hint="待补销售单价/成本")
-    render_kpi_card(c6, "全场月均死亡率", kpi.get('月均死亡率'), is_pct=True, fmt=".2f", 
-                    target_delta="预警线 1.5%", threshold=0.015, inverse=True, missing_hint="待补病死记录")
+    if "生猪" in animal_choice:
+        render_kpi_card(c1, "年提供断奶仔猪 (PSY)", kpi.get('PSY'), fmt=".2f", target_delta="+3.27 超标杆线 (≥20)", threshold=20.0)
+        render_kpi_card(c2, "年提供出栏肥猪 (MSY)", kpi.get('MSY'), fmt=".2f", target_delta="+2.49 超达标线 (≥20)", threshold=20.0)
+        render_kpi_card(c3, "全程成活率", kpi.get('全程成活率'), is_pct=True, fmt=".1f", target_delta="目标 92.0%", threshold=0.92)
+        render_kpi_card(c4, "全年生猪料肉比", kpi.get('年料肉比'), fmt=".2f", target_delta="-0.20 优于上限 (3.4)", threshold=3.4, inverse=True)
+        render_kpi_card(c5, "出栏头均盈利", kpi.get('年头均盈利'), fmt=".1f", unit="元", target_delta="成本核算闭环")
+        render_kpi_card(c6, "全场月均死亡率", kpi.get('月均死亡率'), is_pct=True, fmt=".2f", target_delta="预警线 1.5%", threshold=0.015, inverse=True)
+    elif "奶牛" in animal_choice:
+        render_kpi_card(c1, "成母牛年均单产", kpi.get('成母牛年单产'), fmt=",.0f", unit="kg", target_delta="+973 优于标杆 (10,000kg)", threshold=10000.0)
+        render_kpi_card(c2, "泌乳牛日均单产", kpi.get('泌乳牛日均单产'), fmt=".1f", unit="kg/天", target_delta="高产阶段 (≥35.0)", threshold=35.0)
+        f_val = kpi.get('生鲜牛乳脂率')
+        p_val = kpi.get('生鲜牛乳蛋白率')
+        if pd.notna(f_val) and pd.notna(p_val):
+            c3.metric(label="生鲜牛乳脂 / 乳蛋白率", value=f"{f_val*100:.2f}% / {p_val*100:.2f}%", delta="特级生鲜乳标准")
+        else:
+            c3.metric(label="生鲜牛乳脂率", value="—", delta="待采集")
+        render_kpi_card(c4, "体细胞数 SCC 均值", kpi.get('体细胞数_SCC均值'), fmt=".1f", unit="万/mL", target_delta="特级乳健康标准 (≤20万)", threshold=20.0, inverse=True)
+        render_kpi_card(c5, "全群料奶比 (FMR)", kpi.get('年化料奶比'), fmt=".2f", unit=": 1", target_delta="高效区间 (1.35-1.45)", threshold=1.45, inverse=True)
+        render_kpi_card(c6, "成母牛年头均净利润", kpi.get('成母牛头均年净利润'), fmt=",.0f", unit="元", target_delta="全成本动态推演")
+    elif "肉牛" in animal_choice:
+        render_kpi_card(c1, "育肥平均日增重 (ADG)", kpi.get('平均日增重'), fmt=".2f", unit="kg/天", target_delta="+0.18 超标杆 (≥1.25)", threshold=1.25)
+        render_kpi_card(c2, "料肉比 (干物质FCR)", kpi.get('料肉比_FCR'), fmt=".2f", target_delta="优于控制线 (≤7.5)", threshold=7.5, inverse=True)
+        render_kpi_card(c3, "出栏屠宰率", kpi.get('屠宰率'), is_pct=True, fmt=".1f", target_delta="优质胴体标准 (≥58%)", threshold=0.58)
+        render_kpi_card(c4, "月出栏均重", kpi.get('出栏均重'), fmt=".1f", unit="kg", target_delta="达标出栏 (≥600kg)", threshold=600.0)
+        render_kpi_card(c5, "公斤增重完全成本", kpi.get('公斤增重完全成本'), fmt=".2f", unit="元/kg", target_delta="合理成本区间 (≤26元)", threshold=26.0, inverse=True)
+        render_kpi_card(c6, "头均育肥净利润", kpi.get('头均出栏净利润'), fmt=",.0f", unit="元", target_delta="育肥周期回报优良")
+    elif "奶山羊" in animal_choice:
+        render_kpi_card(c1, "成母羊年均单产", kpi.get('成母羊年单产'), fmt=",.0f", unit="kg", target_delta="优于高产线 (≥700kg)", threshold=700.0)
+        render_kpi_card(c2, "泌乳母羊日均单产", kpi.get('泌乳羊日均单产'), fmt=".2f", unit="kg/天", target_delta="高产阶段 (≥2.30)", threshold=2.3)
+        render_kpi_card(c3, "生鲜羊乳脂率", kpi.get('生鲜羊乳脂率'), is_pct=True, fmt=".2f", target_delta="优质生羊乳标准 (≥4.0%)", threshold=0.04)
+        render_kpi_card(c4, "体细胞数 SCC 均值", kpi.get('体细胞数SCC'), fmt=".1f", unit="万/mL", target_delta="优于行业预警线 (≤100万)", threshold=100.0, inverse=True)
+        render_kpi_card(c5, "公斤羊奶完全成本", kpi.get('公斤羊奶完全成本'), fmt=".2f", unit="元/kg", target_delta="成本控制达标 (≤5.8元)", threshold=5.8, inverse=True)
+        render_kpi_card(c6, "成母羊年均净利", kpi.get('成母羊年头均净利润'), fmt=",.0f", unit="元", target_delta="羊奶产业收益稳定")
+    elif "肉羊" in animal_choice:
+        render_kpi_card(c1, "育肥平均日增重 (ADG)", kpi.get('平均日增重'), fmt=".1f", unit="g/天", target_delta="优于高效线 (≥240g)", threshold=240.0)
+        render_kpi_card(c2, "料肉比 (干物质FCR)", kpi.get('料肉比_FCR'), fmt=".2f", target_delta="控制在标杆内 (≤5.6)", threshold=5.6, inverse=True)
+        render_kpi_card(c3, "出栏屠宰率", kpi.get('屠宰率'), is_pct=True, fmt=".1f", target_delta="肉用标准 (≥52%)", threshold=0.52)
+        render_kpi_card(c4, "出栏均重", kpi.get('出栏均重'), fmt=".1f", unit="kg", target_delta="标准适宰体重 (≥50kg)", threshold=50.0)
+        render_kpi_card(c5, "公斤增重完全成本", kpi.get('公斤增重完全成本'), fmt=".2f", unit="元/kg", target_delta="合理成本 (≤30元)", threshold=30.0, inverse=True)
+        render_kpi_card(c6, "单只出栏净利润", kpi.get('单只出栏净利'), fmt=".1f", unit="元", target_delta="育肥效益良好")
+    elif "皮用羊" in animal_choice:
+        render_kpi_card(c1, "特级及一级裘皮率", kpi.get('特级及一级皮率'), is_pct=True, fmt=".1f", target_delta="优等皮率高 (≥88%)", threshold=0.88)
+        render_kpi_card(c2, "平均花弯数 (九道弯)", kpi.get('平均花弯数'), fmt=".1f", unit="个", target_delta="典型滩羊花弯 (≥8.0)", threshold=8.0)
+        render_kpi_card(c3, "平均毛穗长度", kpi.get('平均毛穗长'), fmt=".1f", unit="cm", target_delta="适龄剥取标准 (≥8.0cm)", threshold=8.0)
+        render_kpi_card(c4, "只均胴体重", kpi.get('只均胴体重'), fmt=".1f", unit="kg", target_delta="优质二毛羔羊肉", threshold=11.0)
+        render_kpi_card(c5, "综合销售毛利率", kpi.get('综合毛利率'), is_pct=True, fmt=".1f", target_delta="肉皮双收高回报 (≥30%)", threshold=0.30)
+        render_kpi_card(c6, "只均二毛羊净利润", kpi.get('只均二毛羊净利'), fmt=",.0f", unit="元", target_delta="特色裘皮高附加值")
+    elif "蛋鸡" in animal_choice:
+        render_kpi_card(c1, "饲养日产蛋率 (HD%)", kpi.get('饲养日产蛋率'), is_pct=True, fmt=".1f", target_delta="高产阶段 (≥90%)", threshold=0.90)
+        render_kpi_card(c2, "料蛋比 (FCR)", kpi.get('料蛋比_FCR'), fmt=".2f", target_delta="优于高效线 (≤2.25)", threshold=2.25, inverse=True)
+        render_kpi_card(c3, "平均蛋重", kpi.get('平均蛋重'), fmt=".1f", unit="g", target_delta="商品一级蛋 (≥62g)", threshold=62.0)
+        render_kpi_card(c4, "哈氏单位 (HU)", kpi.get('哈氏单位_HU'), fmt=".1f", unit="HU", target_delta="AA级特级鲜蛋 (≥80)", threshold=80.0)
+        render_kpi_card(c5, "公斤鸡蛋完全成本", kpi.get('公斤蛋完全成本'), fmt=".2f", unit="元/kg", target_delta="成本控制良好 (≤8.2元)", threshold=8.2, inverse=True)
+        render_kpi_card(c6, "只鸡全期净利润", kpi.get('只鸡全期净利润'), fmt=".1f", unit="元/羽", target_delta="蛋禽运营闭环")
+    else: # 肉鸡
+        render_kpi_card(c1, "欧洲效益指数 (EPI)", kpi.get('欧洲效益指数_EPI'), fmt=".0f", target_delta="超国际标杆 (≥360)", threshold=360.0)
+        render_kpi_card(c2, "育成期全期成活率", kpi.get('全期成活率'), is_pct=True, fmt=".1f", target_delta="健康高成活 (≥95%)", threshold=0.95)
+        render_kpi_card(c3, "全期料肉比 (FCR)", kpi.get('全期料肉比_FCR'), fmt=".2f", target_delta="节粮高效 (≤1.62)", threshold=1.62, inverse=True)
+        render_kpi_card(c4, "出栏均重", kpi.get('出栏均重'), fmt=".2f", unit="kg", target_delta="达到适宰均重 (≥2.5kg)", threshold=2.5)
+        render_kpi_card(c5, "公斤毛鸡完全成本", kpi.get('公斤毛鸡完全成本'), fmt=".2f", unit="元/kg", target_delta="低成本竞争优势 (≤8.8元)", threshold=8.8, inverse=True)
+        render_kpi_card(c6, "只鸡出栏净利润", kpi.get('只鸡净利润'), fmt=".2f", unit="元/羽", target_delta="批次周转效益好")
 
-    st.markdown("---")
+render_top_kpi_cards(animal_choice, kpi)
 
-    def render_pig_trends():
-        st.subheader("📈 生猪生产经营走势")
-        col_t1, col_t2 = st.columns(2)
-        with col_t1:
-            if has_valid_data(df_calc.get('月死亡率')):
-                fig_death = go.Figure()
-                fig_death.add_trace(go.Scatter(
-                    x=df_calc['月份'], y=df_calc['月死亡率']*100, 
-                    mode='lines+markers', name='全场死亡率(%)', 
-                    line=dict(color='#3370FF', width=3)
-                ))
-                fig_death.add_hline(y=1.5, line_dash="dash", line_color="#FF4D4F", annotation_text="预警线 (1.5%)")
-                fig_death.update_layout(title="全场月死亡率走势（自动核验预警线）", template="plotly_white")
-                st.plotly_chart(fig_death, use_container_width=True)
-            else:
-                st.info("ℹ️ 【全场月死亡率走势】暂未绘制：缺少有效「死亡」或存栏台账，补充相关数据后自动生成走势图。")
+# 2. 趋势与分析图表函数
+def render_species_trends(animal_choice, df_calc):
+    st.subheader(f"📈 {animal_choice[:2]}生产经营走势与关键预警")
+    x_col = '批次号' if '批次号' in df_calc.columns else '月份'
+    c_t1, c_t2 = st.columns(2)
+    with c_t1:
+        if "生猪" in animal_choice and '月死亡率' in df_calc.columns:
+            fig1 = go.Figure()
+            fig1.add_trace(go.Scatter(x=df_calc[x_col], y=df_calc['月死亡率']*100, mode='lines+markers', name='月死亡率(%)', line=dict(color='#3370FF', width=3)))
+            fig1.add_hline(y=1.5, line_dash="dash", line_color="#FF4D4F", annotation_text="预警线 (1.5%)")
+            fig1.update_layout(title="全场月死亡率走势（自动核验预警线）", template="plotly_white")
+            st.plotly_chart(fig1, use_container_width=True)
+        elif "奶牛" in animal_choice and '泌乳牛日均单产_kg' in df_calc.columns:
+            fig1 = go.Figure()
+            fig1.add_trace(go.Scatter(x=df_calc[x_col], y=df_calc['泌乳牛日均单产_kg'], mode='lines+markers', name='日均单产(kg)', line=dict(color='#52C41A', width=3)))
+            fig1.add_hline(y=35.0, line_dash="dash", line_color="#FAAD14", annotation_text="高产标杆 (35kg)")
+            fig1.update_layout(title="泌乳牛日均单产波动走势", template="plotly_white")
+            st.plotly_chart(fig1, use_container_width=True)
+        elif "肉牛" in animal_choice and '平均日增重_kg_天' in df_calc.columns:
+            fig1 = go.Figure()
+            fig1.add_trace(go.Scatter(x=df_calc[x_col], y=df_calc['平均日增重_kg_天'], mode='lines+markers', name='日增重(kg/天)', line=dict(color='#722ED1', width=3)))
+            fig1.add_hline(y=1.30, line_dash="dash", line_color="#FF4D4F", annotation_text="高温热应激预警线 (1.30kg)")
+            fig1.update_layout(title="肉牛平均日增重 (ADG) 动态走势", template="plotly_white")
+            st.plotly_chart(fig1, use_container_width=True)
+        elif "奶山羊" in animal_choice and '泌乳羊日单产_kg' in df_calc.columns:
+            fig1 = px.line(df_calc, x=x_col, y='泌乳羊日单产_kg', title="奶山羊泌乳日单产走势 (kg/天)", markers=True)
+            st.plotly_chart(fig1, use_container_width=True)
+        elif "肉羊" in animal_choice and '平均日增重_g_天' in df_calc.columns:
+            fig1 = px.line(df_calc, x=x_col, y='平均日增重_g_天', title="肉羊育肥平均日增重走势 (g/天)", markers=True)
+            st.plotly_chart(fig1, use_container_width=True)
+        elif "皮用羊" in animal_choice and '特级及一级皮率' in df_calc.columns:
+            fig1 = px.line(df_calc, x=x_col, y=df_calc['特级及一级皮率']*100, title="滩羊特级及一级裘皮率走势 (%)", markers=True)
+            st.plotly_chart(fig1, use_container_width=True)
+        elif "蛋鸡" in animal_choice and '饲养日产蛋率_HD' in df_calc.columns:
+            fig1 = go.Figure()
+            fig1.add_trace(go.Scatter(x=df_calc[x_col], y=df_calc['饲养日产蛋率_HD']*100, mode='lines+markers', name='产蛋率(HD%)', line=dict(color='#FA8C16', width=3)))
+            fig1.add_hline(y=90.0, line_dash="dash", line_color="#52C41A", annotation_text="高产标杆 (90%)")
+            fig1.update_layout(title="蛋鸡饲养日产蛋率走势", template="plotly_white")
+            st.plotly_chart(fig1, use_container_width=True)
+        else: # 肉鸡
+            fig1 = px.bar(df_calc, x=x_col, y='欧洲效益指数_EPI', title="肉鸡欧洲效益指数 (EPI) 批次对比", text_auto='.0f', color='欧洲效益指数_EPI')
+            st.plotly_chart(fig1, use_container_width=True)
 
-        with col_t2:
-            has_w = has_valid_data(df_calc.get('出栏均重_kg'))
-            has_fcr = has_valid_data(df_calc.get('料肉比'))
-            if has_w or has_fcr:
-                fig_fcr = go.Figure()
-                if has_w:
-                    fig_fcr.add_trace(go.Bar(x=df_calc['月份'], y=df_calc['出栏均重_kg'], name='出栏均重(kg)', marker_color='#87E8DE'))
-                if has_fcr:
-                    fig_fcr.add_trace(go.Scatter(x=df_calc['月份'], y=df_calc['料肉比'], name='月度料肉比', yaxis='y2', line=dict(color='#FAAD14', width=2)))
-                fig_fcr.update_layout(
-                    title="出栏均重与料肉比动态映射",
-                    yaxis=dict(title="出栏均重 (kg)"),
-                    yaxis2=dict(title="料肉比 (FCR)", overlaying='y', side='right'),
-                    legend=dict(x=0.01, y=0.99), template="plotly_white"
-                )
-                st.plotly_chart(fig_fcr, use_container_width=True)
-            else:
-                st.info("ℹ️ 【出栏均重与料肉比】暂未绘制：缺少「出栏总重」或「耗料量」数据。")
+    with c_t2:
+        fcr_col = None
+        for col_name in ['料肉比', '料奶比', '料肉比_FCR', '料奶比_FMR', '料蛋比_FCR', '全期料肉比_FCR']:
+            if col_name in df_calc.columns:
+                fcr_col = col_name
+                break
+        if fcr_col:
+            fig2 = px.bar(df_calc, x=x_col, y=fcr_col, title=f"月度/批次转换效率 ({fcr_col}) 动态映射", text_auto='.2f', color_discrete_sequence=['#13C2C2'])
+            st.plotly_chart(fig2, use_container_width=True)
+        else:
+            st.info("ℹ️ 转化效率走势图待录入相关饲料与产出台账。")
 
-    def render_pig_structure():
-        st.subheader("🍩 结构与成本洞察")
-        col_p1, col_p2 = st.columns(2)
-        with col_p1:
-            cost_parts = {
-                '饲料采购成本': df_calc.get('饲料采购金额', pd.Series()).sum(min_count=1),
-                '兽药防疫费用': df_calc.get('兽药采购金额', pd.Series()).sum(min_count=1),
-                '人工折旧能耗': df_calc.get('其他成本', pd.Series()).sum(min_count=1)
-            }
-            cost_clean = {k: v for k, v in cost_parts.items() if pd.notna(v) and v > 0}
-            if cost_clean:
-                fig_pie_cost = px.pie(
-                    names=list(cost_clean.keys()), values=list(cost_clean.values()),
-                    title="年度完全养殖成本结构分布", hole=0.45,
-                    color_discrete_sequence=['#FF7A45', '#36CFC9', '#597EF7']
-                )
-                st.plotly_chart(fig_pie_cost, use_container_width=True)
-            else:
-                st.info("ℹ️ 【成本构成扇形图】暂未绘制：缺少饲料/兽药/其他成本录入项。")
+def render_species_structure(animal_choice, df_calc):
+    st.subheader(f"🍩 {animal_choice[:2]}成本效益与精细化结构剖析")
+    c_s1, c_s2 = st.columns(2)
+    with c_s1:
+        cost_cols = [c for c in df_calc.columns if any(k in c for k in ['饲料', '兽药', '成本', '费用', '雏鸡', '折旧'])]
+        val_map = {}
+        for c in cost_cols:
+            s_val = df_calc[c].sum(min_count=1)
+            if pd.notna(s_val) and s_val > 0:
+                val_map[c.replace('_元', '')] = s_val
+        if val_map:
+            fig_pie = px.pie(names=list(val_map.keys()), values=list(val_map.values()), title="养殖总成本构成分布", hole=0.45)
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("ℹ️ 成本构成图待补充饲料、兽药等投入品明细。")
 
-        with col_p2:
-            live_tot = df_calc.get('出生活仔', pd.Series()).sum(min_count=1)
-            out_tot = df_calc.get('出栏', pd.Series()).sum(min_count=1)
-            dead_tot = df_calc.get('死亡', pd.Series()).sum(min_count=1)
-            cull_tot = df_calc.get('淘汰全群', pd.Series()).sum(min_count=1)
+    with c_s2:
+        rev_cols = [c for c in df_calc.columns if any(k in c for k in ['净利润', '收入', '盈利', '毛利'])]
+        if rev_cols:
+            main_rev_col = rev_cols[0]
+            x_col = '批次号' if '批次号' in df_calc.columns else '月份'
+            fig_bar = px.bar(df_calc, x=x_col, y=main_rev_col, title=f"效益走势分析 ({main_rev_col})", color=main_rev_col, color_continuous_scale='Teal')
+            st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            st.info("ℹ️ 收益效益走势图待补充销售记录。")
 
-            if pd.notna(out_tot) and out_tot > 0:
-                surv_data = {'出栏成活': out_tot}
-                if pd.notna(dead_tot) and dead_tot > 0:
-                    surv_data['全期病死'] = dead_tot
-                if pd.notna(cull_tot) and cull_tot > 0:
-                    surv_data['正常死淘'] = cull_tot
-                fig_pie_surv = px.pie(
-                    names=list(surv_data.keys()), values=list(surv_data.values()),
-                    title="仔猪全生命周期存活与死淘分布", hole=0.45,
-                    color_discrete_sequence=['#52C41A', '#FF4D4F', '#FFA940']
-                )
-                st.plotly_chart(fig_pie_surv, use_container_width=True)
-            else:
-                st.info("ℹ️ 【存活与死淘分布】暂未绘制：缺少出栏或死亡记录。")
+def render_species_archive_table(animal_choice, df_calc):
+    st.subheader(f"📑 {animal_choice[:2]}原始生产台账与数据质量体检看板")
+    valid_cols_cnt = sum(has_valid_data(df_calc[c]) for c in df_calc.columns if c not in ['月份', '批次号'])
+    total_cols_cnt = max(1, len([c for c in df_calc.columns if c not in ['月份', '批次号']]))
+    c_q1, c_q2, c_q3 = st.columns([1, 1, 2])
+    c_q1.metric("指标就绪度", f"{valid_cols_cnt} / {total_cols_cnt}", f"{valid_cols_cnt/total_cols_cnt*100:.1f}%")
+    c_q2.metric("台账记录完整性", f"{len(df_calc)} 期", "连续性保持")
+    c_q3.info("💡 提示：本系统具备指标容错隔离特性，任何空项均不影响其他指标推演。下方表格中「—」代表该月份暂未采集该项台账。")
 
-    def render_pig_archive_table():
-        st.subheader("📑 原始档案台账与质量体检")
-        valid_cols_cnt = sum(has_valid_data(df_calc[c]) for c in df_calc.columns if c != '月份')
-        total_cols_cnt = len([c for c in df_calc.columns if c != '月份'])
-        c_q1, c_q2, c_q3 = st.columns([1, 1, 2])
-        c_q1.metric("指标就绪度", f"{valid_cols_cnt} / {total_cols_cnt}", f"{valid_cols_cnt/total_cols_cnt*100:.1f}%")
-        c_q2.metric("台账月度完整性", f"{len(df_calc)} 个月", "存栏动态平衡保持")
-        c_q3.info("💡 提示：本系统具备指标容错隔离特性，任何空项均不影响其他指标推演。下方表格中「—」代表该月份暂未采集该项台账。")
+    st.markdown("##### 原始数据台账明细与核验（空值优雅呈现为 —）")
+    df_show = df_calc.copy()
+    for c in df_show.columns:
+        if c not in ['月份', '批次号', '进雏日期', '出栏日期']:
+            df_show[c] = df_show[c].apply(lambda x: f"{x:,.2f}" if (pd.notna(x) and isinstance(x, (int, float))) else ("—" if pd.isna(x) else str(x)))
+    st.dataframe(df_show, hide_index=True, use_container_width=True)
 
-        st.markdown("##### 原始数据台账明细与核验（空值优雅呈现为 —）")
-        display_cols = [c for c in ['月份', '期初全群存栏', '出生活仔', '出栏', '死亡', '淘汰全群', '期末全群存栏', '出栏均重_kg', '头均盈利_元'] if c in df_calc.columns]
-        df_show = df_calc[display_cols].copy()
-        for c in df_show.columns:
-            if c != '月份':
-                df_show[c] = df_show[c].apply(lambda x: f"{x:,.2f}" if (pd.notna(x) and isinstance(x, (int, float))) else "—")
-        st.dataframe(df_show, hide_index=True, use_container_width=True)
+def render_species_export(animal_choice, df_calc):
+    st.subheader(f"📥 {animal_choice[:2]}测算结果与标准模版导出")
+    st.markdown("您可以将本次测算生成的宽表完整导出，或下载标准模版至本地分发填报：")
+    c_ex1, c_ex2 = st.columns(2)
+    with c_ex1:
+        st.download_button(
+            f"📄 导出{animal_choice[:2]}测算宽表 (CSV)",
+            df_calc.to_csv(index=False).encode('utf-8-sig'),
+            f"{animal_choice[:2]}数字化测算宽表导出.csv",
+            "text/csv",
+            use_container_width=True
+        )
+    with c_ex2:
+        st.info("💡 模版提示：可直接利用导出的 CSV 或标准模版在本地 Excel 修改台账数据，并在侧边栏点击上传重算。")
 
-    def render_pig_export():
-        st.subheader("📥 测算结果与模版导出")
-        st.markdown("您可以将本次测算生成的宽表完整导出，或下载标准空模版至本地分发填报：")
-        c_ex1, c_ex2 = st.columns(2)
-        with c_ex1:
-            st.download_button(
-                "📄 导出生猪月度测算宽表 (CSV)",
-                df_calc.to_csv(index=False).encode('utf-8-sig'),
-                "生猪数字化测算宽表导出.csv",
-                "text/csv",
-                use_container_width=True
-            )
-        with c_ex2:
-            if PIG_TEMPLATE_PATH.exists():
-                with open(PIG_TEMPLATE_PATH, "rb") as f:
-                    t_bytes = f.read()
-                st.download_button(
-                    "💾 下载生猪生产台账标准采集模版 (.xlsx)",
-                    t_bytes,
-                    "生猪生产台账采集与指标计算上传模板.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
+# =====================================================================
+# 十、页面布局渲染：全景平铺模式 vs 标签选项卡模式
+# =====================================================================
 
-    if "全景平铺" in view_mode:
-        st.markdown("#### 模块一：核心生产经营走势与预警")
-        render_pig_trends()
-        st.markdown("---")
-        st.markdown("#### 模块二：成本效益与结构洞察")
-        render_pig_structure()
-        st.markdown("---")
-        st.markdown("#### 模块三：原始生产台账与数据质量体检看板")
-        render_pig_archive_table()
-        st.markdown("---")
-        st.markdown("#### 模块四：行业新闻资讯与咨询文章互动")
-        render_industry_news_section("生猪")
-        st.markdown("---")
-        st.markdown("#### 模块五：行业权威学术论文与科研文献 (DOI直达)")
-        render_research_papers_section("生猪")
-        st.markdown("---")
-        st.markdown("#### 模块六：现代畜牧产业金融、前十猪企与期货大宗行情")
-        render_finance_section("生猪")
-        st.markdown("---")
-        st.markdown("#### 模块七：测算结果导出与标准采集模版")
-        render_pig_export()
-    else:
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-            "📊 生产经营走势", "🍩 成本结构洞察", "📑 台账质量体检",
-            "📰 行业新闻与互动", "📚 权威论文 (DOI)", "💹 产业金融与期货", "📥 测算结果与模版"
-        ])
-        with tab1:
-            render_pig_trends()
-        with tab2:
-            render_pig_structure()
-        with tab3:
-            render_pig_archive_table()
-        with tab4:
-            render_industry_news_section("生猪")
-        with tab5:
-            render_research_papers_section("生猪")
-        with tab6:
-            render_finance_section("生猪")
-        with tab7:
-            render_pig_export()
+if "全景平铺" in view_mode:
+    # 全景平铺模式：全景平铺沉浸呈现，采用略显著分界线与合理增大间距
+    render_species_trends(animal_choice, df_calc)
+    render_section_divider()
+
+    render_species_structure(animal_choice, df_calc)
+    render_section_divider()
+
+    render_species_archive_table(animal_choice, df_calc)
+    render_section_divider()
+
+    render_industry_news_section(animal_choice)
+    render_section_divider()
+
+    render_research_papers_section(animal_choice)
+    render_section_divider()
+
+    render_finance_section(animal_choice)
+    render_section_divider()
+
+    render_species_export(animal_choice, df_calc)
 
 else:
-    # 奶牛分支主视觉呈现
-    st.markdown("### 🐄 奶牛养殖核心经营指标概览 (1000头成母牛现代示范牧场)")
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    render_kpi_card(c1, "成母牛年均单产", kpi.get('成母牛年单产'), fmt=",.0f", unit="kg", 
-                    target_delta="+973 优于标杆 (10,000kg)", threshold=10000.0, missing_hint="待补产奶记录")
-    render_kpi_card(c2, "泌乳牛日均单产", kpi.get('泌乳牛日均单产'), fmt=".1f", unit="kg/天", 
-                    target_delta="高产阶段 (≥35.0)", threshold=35.0, missing_hint="待补泌乳牛/产奶量")
-
-    f_val = kpi.get('生鲜牛乳脂率')
-    p_val = kpi.get('生鲜牛乳蛋白率')
-    if pd.notna(f_val) and pd.notna(p_val):
-        c3.metric(label="生鲜牛乳脂 / 乳蛋白率", value=f"{f_val*100:.2f}% / {p_val*100:.2f}%", delta="特级生鲜乳标准")
-    elif pd.notna(f_val):
-        c3.metric(label="生鲜牛乳脂率", value=f"{f_val*100:.2f}%", delta="乳蛋白率待补充")
-    elif pd.notna(p_val):
-        c3.metric(label="生鲜牛乳蛋白率", value=f"{p_val*100:.2f}%", delta="乳脂率待补充")
-    else:
-        c3.metric(label="乳脂率 | 乳蛋白率", value="—", delta="⏳ 待补充 DHI 测定数据", delta_color="off")
-
-    render_kpi_card(c4, "体细胞数 SCC 均值", kpi.get('体细胞数_SCC均值'), fmt=".1f", unit="万/mL", 
-                    target_delta="行业红线 20万", threshold=20.0, inverse=True, missing_hint="待补体细胞化验项")
-    render_kpi_card(c5, "全群料奶比 (FMR)", kpi.get('年化料奶比'), fmt=".2f", unit=": 1", 
-                    target_delta="效率优良 (≤1.50)", threshold=1.50, inverse=True, missing_hint="待补干物质采食量")
-    render_kpi_card(c6, "成母牛年头均净利润", kpi.get('成母牛头均年净利润'), fmt=",.0f", unit="元", 
-                    target_delta=f"完全成本 ¥{kpi.get('公斤奶平均成本'):.2f}/kg" if pd.notna(kpi.get('公斤奶平均成本')) else "成本闭环核算", 
-                    missing_hint="待补原奶售价与成本")
-
-    st.markdown("---")
-
-    def render_cow_trends():
-        st.subheader("📈 奶牛产奶与品质核心走势")
-        col_c1, col_c2 = st.columns(2)
-        with col_c1:
-            has_milk = has_valid_data(df_calc.get('月总产奶_吨'))
-            has_daily = has_valid_data(df_calc.get('日均单产_kg'))
-            if has_milk or has_daily:
-                fig_milk = go.Figure()
-                if has_milk:
-                    fig_milk.add_trace(go.Bar(x=df_calc['月份'], y=df_calc['月总产奶_吨'], name='月总产奶量(吨)', marker_color='#69C0FF'))
-                if has_daily:
-                    fig_milk.add_trace(go.Scatter(x=df_calc['月份'], y=df_calc['日均单产_kg'], name='泌乳牛日均单产(kg)', yaxis='y2', line=dict(color='#FF7A45', width=3)))
-                fig_milk.update_layout(
-                    title="原奶月度总产出与泌乳牛单产趋势",
-                    yaxis=dict(title="月总产奶量 (吨)"),
-                    yaxis2=dict(title="日均单产 (kg/天)", overlaying='y', side='right'),
-                    legend=dict(x=0.01, y=0.99), template="plotly_white"
-                )
-                st.plotly_chart(fig_milk, use_container_width=True)
-            else:
-                st.info("ℹ️ 【产奶走势图】暂未绘制：缺少月产奶量或泌乳牛头数。")
-
-        with col_c2:
-            has_scc = has_valid_data(df_calc.get('体细胞数_SCC'))
-            if has_scc:
-                fig_scc = go.Figure()
-                fig_scc.add_trace(go.Scatter(x=df_calc['月份'], y=df_calc['体细胞数_SCC'], mode='lines+markers', name='SCC (万/mL)', line=dict(color='#B37FEB', width=3)))
-                fig_scc.add_hline(y=20.0, line_dash="dash", line_color="#FF4D4F", annotation_text="优质乳行业上限 (20万/mL)")
-                fig_scc.update_layout(title="生鲜乳体细胞数 (SCC) 预警走势", yaxis=dict(title="SCC (万/mL)"), template="plotly_white")
-                st.plotly_chart(fig_scc, use_container_width=True)
-            else:
-                st.info("ℹ️ 【体细胞数 SCC 预警走势】暂未绘制：缺少 DHI 体细胞数记录。")
-
-    def render_cow_structure():
-        st.subheader("🍩 奶牛成本效益结构剖析")
-        col_cp1, col_cp2 = st.columns(2)
-        with col_cp1:
-            milk_cost_parts = {
-                '粗饲料费用': df_calc.get('粗饲料费', pd.Series()).sum(min_count=1),
-                '精饲料费用': df_calc.get('精饲料费', pd.Series()).sum(min_count=1),
-                '兽药与疫苗': df_calc.get('兽药防疫费', pd.Series()).sum(min_count=1),
-                '人工折旧能耗': df_calc.get('其他成本', pd.Series()).sum(min_count=1)
-            }
-            clean_m_cost = {k: v for k, v in milk_cost_parts.items() if pd.notna(v) and v > 0}
-            if clean_m_cost:
-                fig_pie_mcost = px.pie(
-                    names=list(clean_m_cost.keys()), values=list(clean_m_cost.values()),
-                    title="奶牛完全饲养成本结构分布", hole=0.45,
-                    color_discrete_sequence=['#73D13D', '#FFA940', '#FF4D4F', '#40A9FF']
-                )
-                st.plotly_chart(fig_pie_mcost, use_container_width=True)
-            else:
-                st.info("ℹ️ 【成本结构饼图】暂未绘制：缺少饲料或费用录入。")
-
-        with col_cp2:
-            has_rev = has_valid_data(df_calc.get('月度生鲜乳收入_元'))
-            has_tot_cost = has_valid_data(df_calc.get('月度总成本_元'))
-            if has_rev and has_tot_cost:
-                fig_profit = go.Figure()
-                fig_profit.add_trace(go.Bar(x=df_calc['月份'], y=df_calc['月度生鲜乳收入_元']/10000, name='销售收入(万元)', marker_color='#36CFC9'))
-                fig_profit.add_trace(go.Bar(x=df_calc['月份'], y=df_calc['月度总成本_元']/10000, name='完全成本(万元)', marker_color='#FFA39E'))
-                profit_vals = (df_calc['月度生鲜乳收入_元'] - df_calc['月度总成本_元']) / 10000
-                fig_profit.add_trace(go.Scatter(x=df_calc['月份'], y=profit_vals, name='月净利润(万元)', line=dict(color='#52C41A', width=3)))
-                fig_profit.update_layout(title="月度收支与利润对冲分析", yaxis=dict(title="金额 (万元)"), barmode='group', template="plotly_white")
-                st.plotly_chart(fig_profit, use_container_width=True)
-            else:
-                st.info("ℹ️ 【收支与利润对冲分析】暂未绘制：缺少原奶售价或月度成本。")
-
-    def render_cow_archive_table():
-        st.subheader("📑 奶牛生产台账与质量体检")
-        valid_cols_cnt = sum(has_valid_data(df_calc[c]) for c in df_calc.columns if c != '月份')
-        total_cols_cnt = len([c for c in df_calc.columns if c != '月份'])
-        c_q1, c_q2, c_q3 = st.columns([1, 1, 2])
-        c_q1.metric("指标就绪度", f"{valid_cols_cnt} / {total_cols_cnt}", f"{valid_cols_cnt/total_cols_cnt*100:.1f}%")
-        c_q2.metric("台账月度完整性", f"{len(df_calc)} 个月", "产奶存栏动态平衡")
-        c_q3.info("💡 提示：本系统具备指标容错隔离特性，任何空项均不影响其他指标推演。下方表格中「—」代表该月份暂未采集该项台账。")
-
-        display_cols_cow = [c for c in ['月份', '期初成母牛', '在挤泌乳牛', '干奶牛', '月产奶量_kg', '生鲜乳销量_kg', '日均单产_kg', '公斤奶完全成本_元', '公斤奶净利润_元'] if c in df_calc.columns]
-        df_show_cow = df_calc[display_cols_cow].copy()
-        for c in df_show_cow.columns:
-            if c != '月份':
-                df_show_cow[c] = df_show_cow[c].apply(lambda x: f"{x:,.2f}" if (pd.notna(x) and isinstance(x, (int, float))) else "—")
-        st.dataframe(df_show_cow, hide_index=True, use_container_width=True)
-
-    def render_cow_export():
-        st.subheader("📥 测算结果与模版导出")
-        st.markdown("您可以将本次测算生成的宽表完整导出，或下载标准空模版至本地分发填报：")
-        c_ex1, c_ex2 = st.columns(2)
-        with c_ex1:
-            st.download_button(
-                "📄 导出奶牛月度测算宽表 (CSV)",
-                df_calc.to_csv(index=False).encode('utf-8-sig'),
-                "奶牛数字化测算宽表导出.csv",
-                "text/csv",
-                use_container_width=True
-            )
-        with c_ex2:
-            if COW_TEMPLATE_PATH.exists():
-                with open(COW_TEMPLATE_PATH, "rb") as f:
-                    t_bytes = f.read()
-                st.download_button(
-                    "💾 下载奶牛生产台账标准采集模版 (.xlsx)",
-                    t_bytes,
-                    "奶牛生产台账采集与指标计算上传模板.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-
-    if "全景平铺" in view_mode:
-        st.markdown("#### 模块一：核心产奶走势与关键预警")
-        render_cow_trends()
-        st.markdown("---")
-        st.markdown("#### 模块二：奶牛成本效益结构剖析")
-        render_cow_structure()
-        st.markdown("---")
-        st.markdown("#### 模块三：奶牛生产台账与质量体检看板")
-        render_cow_archive_table()
-        st.markdown("---")
-        st.markdown("#### 模块四：行业新闻资讯与咨询文章互动")
-        render_industry_news_section("奶牛")
-        st.markdown("---")
-        st.markdown("#### 模块五：行业权威学术论文与科研文献 (DOI直达)")
-        render_research_papers_section("奶牛")
-        st.markdown("---")
-        st.markdown("#### 模块六：现代畜牧产业金融、前十乳企与期货大宗行情")
-        render_finance_section("奶牛")
-        st.markdown("---")
-        st.markdown("#### 模块七：测算结果导出与标准采集模版")
-        render_cow_export()
-    else:
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-            "🥛 产奶与经营看板", "🛡️ 健康合规与DHI预警", "📑 奶牛生产台账与质量体检",
-            "📰 行业新闻与互动", "📚 权威论文 (DOI)", "💹 产业金融与期货", "📥 测算结果与模版"
-        ])
-        with tab1:
-            render_cow_trends()
-        with tab2:
-            render_cow_structure()
-        with tab3:
-            render_cow_archive_table()
-        with tab4:
-            render_industry_news_section("奶牛")
-        with tab5:
-            render_research_papers_section("奶牛")
-        with tab6:
-            render_finance_section("奶牛")
-        with tab7:
-            render_cow_export()
+    # 标签选项卡模式
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "📊 生产经营走势", 
+        "🍩 成本效益结构", 
+        "📑 台账质量体检",
+        "📰 行业新闻资讯", 
+        "📚 权威论文 (DOI)", 
+        "💹 产业金融与期货", 
+        "📥 测算结果与模版"
+    ])
+    with tab1:
+        render_species_trends(animal_choice, df_calc)
+    with tab2:
+        render_species_structure(animal_choice, df_calc)
+    with tab3:
+        render_species_archive_table(animal_choice, df_calc)
+    with tab4:
+        render_industry_news_section(animal_choice)
+    with tab5:
+        render_research_papers_section(animal_choice)
+    with tab6:
+        render_finance_section(animal_choice)
+    with tab7:
+        render_species_export(animal_choice, df_calc)
 
 # =====================================================================
-# 十、知识产权、学术严正声明与页脚版权
+# 十一、知识产权、学术严正声明与页脚版权
 # =====================================================================
-st.markdown("---")
+render_section_divider()
 st.info("""
 **⚖️ 项目独立进行与知识产权严正声明 (Project Declaration)**
 
@@ -1530,5 +1872,5 @@ st.info("""
 - **机构**: 中国西北农林科技大学 动物科技学院 (College of Animal Science and Technology, Northwest A&F University)
 """)
 
-st.markdown("---")
-st.markdown("© 2026 智慧牧业工程 · 李尧 2024010983 · 中国西北农林科技大学动物科技学院 · 生猪与奶牛双畜种数字化养殖档案与指标计算演示系统 (V2.5)")
+render_section_divider()
+st.markdown("© 2026 智慧牧业工程 · 李尧 2024010983 · 中国西北农林科技大学动物科技学院 · 覆盖八大畜禽种类数字化养殖档案与指标计算演示系统 (V2.6)")

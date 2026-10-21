@@ -110,13 +110,67 @@ BROILER_KPI_PATH = KPI_DIR / "肉鸡养殖核心指标库与可行性验证.xlsx
 
 PIG_TEMPLATE_PATH = CURRENT_DIR / "生猪生产台账采集与指标计算上传模板.xlsx"
 COW_TEMPLATE_PATH = CURRENT_DIR / "奶牛生产台账采集与指标计算上传模板.xlsx"
+BEEF_TEMPLATE_PATH = CURRENT_DIR / "肉牛生产台账采集与指标计算上传模板.xlsx"
+GOAT_TEMPLATE_PATH = CURRENT_DIR / "奶山羊生产台账采集与指标计算上传模板.xlsx"
+SHEEP_TEMPLATE_PATH = CURRENT_DIR / "肉羊生产台账采集与指标计算上传模板.xlsx"
+FUR_TEMPLATE_PATH = CURRENT_DIR / "皮用羊生产台账采集与指标计算上传模板.xlsx"
+LAYER_TEMPLATE_PATH = CURRENT_DIR / "蛋鸡生产台账采集与指标计算上传模板.xlsx"
+BROILER_TEMPLATE_PATH = CURRENT_DIR / "肉鸡生产台账采集与指标计算上传模板.xlsx"
+
+SPECIES_TEMPLATE_DICT = {
+    "生猪": ("生猪生产台账采集与指标计算上传模板.xlsx", PIG_TEMPLATE_PATH),
+    "奶牛": ("奶牛生产台账采集与指标计算上传模板.xlsx", COW_TEMPLATE_PATH),
+    "肉牛": ("肉牛生产台账采集与指标计算上传模板.xlsx", BEEF_TEMPLATE_PATH),
+    "奶山羊": ("奶山羊生产台账采集与指标计算上传模板.xlsx", GOAT_TEMPLATE_PATH),
+    "肉羊": ("肉羊生产台账采集与指标计算上传模板.xlsx", SHEEP_TEMPLATE_PATH),
+    "皮用羊": ("皮用羊生产台账采集与指标计算上传模板.xlsx", FUR_TEMPLATE_PATH),
+    "蛋鸡": ("蛋鸡生产台账采集与指标计算上传模板.xlsx", LAYER_TEMPLATE_PATH),
+    "肉鸡": ("肉鸡生产台账采集与指标计算上传模板.xlsx", BROILER_TEMPLATE_PATH),
+}
+
+def get_template_info(animal_choice):
+    for key, (fname, pth) in SPECIES_TEMPLATE_DICT.items():
+        if key in animal_choice:
+            return key, fname, pth
+    return "生猪", "生猪生产台账采集与指标计算上传模板.xlsx", PIG_TEMPLATE_PATH
+
+def load_template_preview_df(template_path):
+    if template_path.exists():
+        try:
+            xl = pd.ExcelFile(template_path)
+            s1 = xl.sheet_names[0]
+            df_raw = xl.parse(s1, header=None)
+            header_idx = 2
+            for idx in range(min(6, len(df_raw))):
+                row_str = " ".join([str(v) for v in df_raw.iloc[idx].values if pd.notna(v)])
+                if any(kw in row_str for kw in ["填报说明", "说明：", "指南", "录入说明"]):
+                    continue
+                if any(k in row_str for k in ["月份", "批次", "批次号", "存栏", "产奶", "增重", "日龄", "产蛋"]):
+                    header_idx = idx
+                    break
+            df_preview = xl.parse(s1, skiprows=header_idx)
+            df_preview = df_preview.dropna(how='all')
+            first_col = df_preview.columns[0]
+            df_preview = df_preview[~df_preview[first_col].astype(str).str.contains("全年|累计|合计|均值|平均|说明", na=False)]
+            df_guide = None
+            if len(xl.sheet_names) > 1:
+                df_guide = xl.parse(xl.sheet_names[1], skiprows=1)
+                df_guide = df_guide.dropna(how='all')
+            return df_preview, df_guide
+        except Exception:
+            pass
+    return pd.DataFrame(), None
 
 # =====================================================================
 # 一、基础辅助函数：安全计算与UI格式化
 # =====================================================================
-def safe_series(df, col, default_val=np.nan):
+def safe_series(df, col, default_val=np.nan, aliases=None):
     if col in df.columns:
         return pd.to_numeric(df[col], errors='coerce')
+    if aliases:
+        for a in aliases:
+            if a in df.columns:
+                return pd.to_numeric(df[a], errors='coerce')
     return pd.Series([default_val] * len(df))
 
 def safe_div(s1, s2):
@@ -223,12 +277,15 @@ def parse_uploaded_excel(uploaded_file, animal_type="生猪"):
     header_row_idx = 0
     for idx in range(min(10, len(df_raw))):
         row_str = " ".join([str(v) for v in df_raw.iloc[idx].values if pd.notna(v)])
-        if any(k in row_str for k in ["月份", "批次", "存栏", "产奶", "增重", "日龄", "产蛋"]):
+        if any(kw in row_str for kw in ["填报说明", "说明：", "指南", "录入说明"]):
+            continue
+        if any(k in row_str for k in ["月份", "批次", "批次号", "存栏", "产奶", "增重", "日龄", "产蛋"]):
             header_row_idx = idx
             break
             
     df = xl.parse(target_sheet, skiprows=header_row_idx)
     df = df.dropna(how='all')
+    df.columns = [str(c).replace('*', '').strip() for c in df.columns]
     first_col = df.columns[0]
     df = df[~df[first_col].astype(str).str.contains("全年|累计|合计|均值|平均|说明", na=False)]
     
@@ -381,18 +438,18 @@ def compute_cow_metrics(df_raw):
     if '月份' not in df.columns:
         df['月份'] = [f"{i+1}月" for i in range(n)]
 
-    end_cow = safe_series(df, '期末成母牛存栏')
-    lact_cow = safe_series(df, '在挤泌乳牛头数')
+    end_cow = safe_series(df, '期末成母牛存栏', aliases=['期末成母牛', '成母牛存栏'])
+    lact_cow = safe_series(df, '在挤泌乳牛头数', aliases=['泌乳牛头数', '泌乳牛'])
     days = safe_series(df, '当月天数', 30.5)
-    milk = safe_series(df, '生鲜乳产量_kg')
-    fat = safe_series(df, '生鲜牛乳脂率')
-    protein = safe_series(df, '生鲜牛乳蛋白率')
-    scc = safe_series(df, '体细胞数_SCC_万')
-    dmi = safe_series(df, '泌乳牛干物质采食量_DMI')
-    feed_money = safe_series(df, '饲料采购金额')
-    vet_money = safe_series(df, '兽药采购金额')
-    other_cost = safe_series(df, '其他完全成本')
-    price = safe_series(df, '生鲜乳销售单价')
+    milk = safe_series(df, '生鲜乳产量_kg', aliases=['月产奶量_kg', '生鲜乳销售量_kg'])
+    fat = safe_series(df, '生鲜牛乳脂率', aliases=['乳脂率', '生鲜乳脂率'])
+    protein = safe_series(df, '生鲜牛乳蛋白率', aliases=['乳蛋白率', '生鲜乳蛋白率'])
+    scc = safe_series(df, '体细胞数_SCC_万', aliases=['体细胞数_SCC', '体细胞数'])
+    dmi = safe_series(df, '泌乳牛干物质采食量_DMI', aliases=['干物质采食量DMI_kg', '干物质采食量'])
+    feed_money = safe_series(df, '饲料采购金额', aliases=['饲料采购总额_元', '粗饲料费'])
+    vet_money = safe_series(df, '兽药采购金额', aliases=['兽药防疫费', '兽药采购费'])
+    other_cost = safe_series(df, '其他完全成本', aliases=['其他成本', '人工折旧能耗费用_元'])
+    price = safe_series(df, '生鲜乳销售单价', aliases=['原料奶售价', '销售单价', 3.82])
 
     df['泌乳牛日均单产_kg'] = milk / (lact_cow * days)
     total_cost = feed_money.fillna(0) + vet_money.fillna(0) + other_cost.fillna(0)
@@ -1422,9 +1479,33 @@ with st.sidebar:
 
     if is_custom_upload:
         st.markdown("##### 📥 采集模版获取与填报指引")
-        st.info("💡 填报贴士：支持直接上传养殖场月度或批次生产台账工作簿，未采集字段可留空，系统内置容错隔离引擎自动保障其余指标计算正常。")
+        st.info("💡 填报贴士：支持直接下载标准采集模版并在本地修改或补充数值；未采集字段可留空，系统内置容错隔离引擎自动保障其余指标计算正常。")
+        
+        _, tmpl_fname, tmpl_path = get_template_info(animal_choice)
+        if tmpl_path.exists():
+            with open(tmpl_path, "rb") as f_t:
+                tmpl_bytes = f_t.read()
+            st.download_button(
+                label=f"📥 直接下载【{tmpl_fname}】到本地",
+                data=tmpl_bytes,
+                file_name=tmpl_fname,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                help=f"点击直接下载{animal_choice[:2]}标准 Excel 模版至本地，填入数值后再在此上传"
+            )
+            
+            with st.expander(f"👀 在线预览【{animal_choice[:2]}生产台账模版】结构与规范", expanded=False):
+                st.caption(f"模版包含规范台账录入与法定指标指南双表，支持直接修改基准值或填入真实数据：")
+                df_prev, df_gd = load_template_preview_df(tmpl_path)
+                if not df_prev.empty:
+                    st.markdown("**① 台账数据录入表结构预览：**")
+                    st.dataframe(df_prev, hide_index=True, use_container_width=True)
+                if df_gd is not None and not df_gd.empty:
+                    st.markdown("**② 核心字段填报与容错指南预览：**")
+                    st.dataframe(df_gd, hide_index=True, use_container_width=True)
+
         uploaded_file = st.file_uploader(
-            f"📤 请上传修改好的 {animal_choice[:2]} 台账工作簿 (.xlsx)",
+            f"📤 请上传填写好的 {animal_choice[:2]} 台账工作簿 (.xlsx)",
             type=["xlsx", "xls"]
         )
 
@@ -1788,7 +1869,10 @@ def render_species_archive_table(animal_choice, df_calc):
 
 def render_species_export(animal_choice, df_calc):
     st.subheader(f"📥 {animal_choice[:2]}测算结果与标准模版导出")
-    st.markdown("您可以将本次测算生成的宽表完整导出，或下载标准模版至本地分发填报：")
+    st.markdown("您可以将本次测算生成的宽表完整导出，或直接下载标准 Excel 上传模版至本地分发填报：")
+    
+    _, tmpl_fname, tmpl_path = get_template_info(animal_choice)
+    
     c_ex1, c_ex2 = st.columns(2)
     with c_ex1:
         st.download_button(
@@ -1799,7 +1883,27 @@ def render_species_export(animal_choice, df_calc):
             use_container_width=True
         )
     with c_ex2:
-        st.info("💡 模版提示：可直接利用导出的 CSV 或标准模版在本地 Excel 修改台账数据，并在侧边栏点击上传重算。")
+        if tmpl_path.exists():
+            with open(tmpl_path, "rb") as f_t:
+                t_bytes = f_t.read()
+            st.download_button(
+                f"📊 下载标准模版【{tmpl_fname}】(Excel)",
+                t_bytes,
+                tmpl_fname,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        else:
+            st.info("💡 模版提示：可直接利用导出的 CSV 或标准模版在本地 Excel 修改台账数据，并在侧边栏点击上传重算。")
+            
+    with st.expander(f"👀 在线展开预览【{animal_choice[:2]}标准上传模版】全部字段与规范", expanded=False):
+        df_prev, df_gd = load_template_preview_df(tmpl_path)
+        if not df_prev.empty:
+            st.markdown(f"**📑 工作表一：{animal_choice[:2]}台账数据录入（共 {len(df_prev)} 条基准参考数据，支持就地替换真实值）**")
+            st.dataframe(df_prev, hide_index=True, use_container_width=True)
+        if df_gd is not None and not df_gd.empty:
+            st.markdown(f"**📖 工作表二：{animal_choice[:2]}字段填报指南与系统容错说明（对标法定养殖档案 NY/T 3445-2019）**")
+            st.dataframe(df_gd, hide_index=True, use_container_width=True)
 
 # =====================================================================
 # 十、页面布局渲染：全景平铺模式 vs 标签选项卡模式

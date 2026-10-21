@@ -1,0 +1,1 @@
+This project was independently developed and conducted in October 2026 by Li Yao (Student ID: 2024010983) from the College of Animal Science and Technology, Northwest A&F University. It is strictly intended for academic communication and educational study only. Unauthorized academic publication, thesis submission, software redistribution, or commercial use is strictly prohibited.

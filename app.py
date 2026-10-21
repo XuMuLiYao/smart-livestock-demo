@@ -3,10 +3,11 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：畜牧图情结合 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
-升级亮点（2026-10-22 第4次改动）：
-  1. 精简数据源结构：生猪保留“默认500头母猪基准演练模型”与“上传自定义生猪生产 Excel”，奶牛保留“默认1000头成母牛现代牧场示范数据”与“上传自定义奶牛生产 Excel (.xlsx)”，移除其他冗余数据源
-  2. 品牌与语义表述规范化：将“畜牧图情结合示范工程”“畜牧图情结合示范项目”统一规范表述为“智慧牧业工程”，将“数据底座”规范表述为“数据”
-  3. 严格保持《畜牧法》与 NY/T 3445-2019 法定合规依据与双畜种全闭环业务与容错隔离引擎
+升级亮点（2026-10-22 第5次改动）：
+  1. 版权与独立声明强化：版权标识处添加李尧 2024010983，页面显著位置增设中国西北农林科技大学动物科技学院李尧独立进行之正式中英文声明（严禁擅自论文发表及商用）
+  2. 增设金融与产业龙头生态板块：可分别一键跳转中国前十猪企官网、中国前十乳企官网（排名依据上市公司市值及年出栏/原奶产量），并支持直达跳转生猪期货、牛奶期货、牛肉期货及豆粕、玉米、菜粕、豆油、淀粉、强麦等各种核心饲料原料期货实时行情与交易所规则
+  3. 开发者联系方式公示：页面侧边栏与页脚清晰公示作者联系方式（QQ: 3100785036，WeChat: 13679275651）
+  4. 严格保持《畜牧法》与 NY/T 3445-2019 法定合规依据与双畜种全闭环业务
 """
 import streamlit as st
 import pandas as pd
@@ -607,6 +608,163 @@ def load_kpi_dict(animal_type):
     return pd.DataFrame(dict_data, columns=headers1)
 
 # =====================================================================
+
+# =====================================================================
+# 五点五、产业金融板块：行业十强龙头与大宗期货行情直达
+# =====================================================================
+def render_finance_section(default_kind="生猪"):
+    st.markdown("### 💹 现代畜牧产业金融、行业龙头与大宗期货行情矩阵")
+    st.caption("📌 **板块定位与排名说明**：本板块深度连接现代畜牧实体养殖与金融资本市场。中国前十猪企与前十乳企排名依据 A股/H股上市公司最新流通/总市值、营业总收入及生猪年出栏量 / 原奶年产量综合核定。点击各龙头企业或期货品种卡片可一键直达官方网站与交易所实时行情。")
+    
+    tab_f1, tab_f2, tab_f3 = st.tabs([
+        "🐖 中国前十生猪养殖龙头官网直达", 
+        "🐄 中国前十乳业与奶牛牧场龙头官网直达", 
+        "📈 畜禽、原奶、牛肉及核心饲料原料期货行情"
+    ])
+    
+    with tab_f1:
+        st.subheader("🐖 中国生猪养殖产业十强龙头企业 (Top 10 Pig Farming Enterprises)")
+        st.caption("🏆 排名核心依据：A股/H股上市公司最新市值及 2025/2026 年度生猪出栏量/生产产能规模")
+        pig_leaders = [
+            {"排名": "01", "企业名称": "牧原食品股份有限公司", "股票代码": "002714.SZ", "核心规模/出栏量": "年出栏超 7,000 万头（中国与全球第一）", "市值估算": "约 2,100 亿元", "核心定位": "全自繁自养一体化龙头，超低成本与智能化标杆", "官网": "https://www.muyuanfoods.com/"},
+            {"排名": "02", "企业名称": "温氏食品集团股份有限公司", "股票代码": "300498.SZ", "核心规模/出栏量": "年出栏近 3,000 万头肉猪（行业第二）", "市值估算": "约 1,200 亿元", "核心定位": "“公司+农户”紧密型现代畜禽产业领跑者", "官网": "https://www.wens.com.cn/"},
+            {"排名": "03", "企业名称": "新希望六和股份有限公司", "股票代码": "000876.SZ", "核心规模/出栏量": "年出栏约 1,600-1,800 万头", "市值估算": "约 450 亿元", "核心定位": "农牧饲料制造与生猪肉禽一体化全链巨头", "官网": "http://www.newhopegroup.com/"},
+            {"排名": "04", "企业名称": "双胞胎（集团）股份有限公司", "股票代码": "非上市大型集团", "核心规模/出栏量": "年出栏超 1,300 万头，生猪饲料全国第一", "市值估算": "行业头部非上市航母", "核心定位": "猪饲料全产业链与生猪高产养殖旗舰", "官网": "http://www.twin-star.com.cn/"},
+            {"排名": "05", "企业名称": "四川德康农牧食品集团", "股票代码": "02419.HK", "核心规模/出栏量": "年出栏超 800 万头（西南生猪领军）", "市值估算": "约 220 亿港元", "核心定位": "两阶段家庭农场与优质种猪养殖一体化", "官网": "http://www.dekon.cn/"},
+            {"排名": "06", "企业名称": "江西正邦科技股份有限公司", "股票代码": "002157.SZ", "核心规模/出栏量": "重整复苏，年生猪出栏超 600 万头", "市值估算": "约 260 亿元", "核心定位": "生猪养殖与饲料加工老牌上市公司", "官网": "http://www.zhengbang.com/"},
+            {"排名": "07", "企业名称": "北京大北农科技集团", "股票代码": "002385.SZ", "核心规模/出栏量": "年生猪出栏超 600 万头", "市值估算": "约 200 亿元", "核心定位": "农业生物育种与生猪数字化生态领航者", "官网": "https://www.dbn.cn/"},
+            {"排名": "08", "企业名称": "天邦食品股份有限公司", "股票代码": "002124.SZ", "核心规模/出栏量": "年生猪出栏超 600 万头", "市值估算": "约 70 亿元", "核心定位": "史记生物基因育种与健康猪肉食品全链", "官网": "http://www.tianbang.com/"},
+            {"排名": "09", "企业名称": "唐人神集团股份有限公司", "股票代码": "002567.SZ", "核心规模/出栏量": "年生猪出栏近 400 万头", "市值估算": "约 80 亿元", "核心定位": "生物饲料、健康养殖与品牌肉品闭环龙头", "官网": "http://www.chinatrs.com/"},
+            {"排名": "10", "企业名称": "巨星农牧股份有限公司", "股票代码": "603477.SH", "核心规模/出栏量": "年生猪出栏超 300 万头", "市值估算": "约 105 亿元", "核心定位": "引进优质生猪种源与精细化管理效益先锋", "官网": "http://www.giantstar.cn/"}
+        ]
+        for p in pig_leaders:
+            with st.container():
+                cp1, cp2, cp3, cp4 = st.columns([1, 4, 3, 2])
+                cp1.markdown(f"### `{p['排名']}`")
+                cp2.markdown(f"**[{p['企业名称']}]({p['官网']})** `{p['股票代码']}`\n\n📌 {p['核心定位']}")
+                cp3.markdown(f"🐖 **规模**: {p['核心规模/出栏量']}\n\n💰 **市值**: {p['市值估算']}")
+                cp4.link_button(f"🌐 访问官网", p['官网'], use_container_width=True)
+                st.markdown("<hr style='margin:4px 0; border: none; border-top: 1px dashed #333;'>", unsafe_allow_html=True)
+                
+    with tab_f2:
+        st.subheader("🐄 中国乳业及原奶生产十强龙头企业 (Top 10 Dairy Enterprises)")
+        st.caption("🏆 排名核心依据：上市公司最新市值、营业总收入规模及原奶/优质乳制品年产量")
+        cow_leaders = [
+            {"排名": "01", "企业名称": "内蒙古伊利实业集团股份有限公司", "股票代码": "600887.SH", "核心规模/产量": "年营业收入超 1,150 亿元，亚洲乳业第一", "市值估算": "超 1,750 亿元", "核心定位": "全品类规模最大综合乳企，全球乳业五强", "官网": "https://www.yili.com/"},
+            {"排名": "02", "企业名称": "中国蒙牛乳业有限公司", "股票代码": "02319.HK", "核心规模/产量": "年营业收入近 1,000 亿元，全球乳业前十", "市值估算": "约 600 亿港元", "核心定位": "拥有特仑苏、纯甄超级品牌矩阵的创新巨头", "官网": "https://www.mengniu.com.cn/"},
+            {"排名": "03", "企业名称": "光明乳业股份有限公司", "股票代码": "600597.SH", "核心规模/产量": "中国鲜奶与低温巴氏奶第一品牌", "市值估算": "约 115 亿元", "核心定位": "百年历史底蕴，深耕冷链优质生鲜乳标杆", "官网": "https://www.brightdairy.com/"},
+            {"排名": "04", "企业名称": "中国飞鹤有限公司", "股票代码": "06186.HK", "核心规模/产量": "中国婴幼儿配方奶粉第一品牌", "市值估算": "约 420 亿港元", "核心定位": "北纬 47° 黄金奶源带全产业链婴配粉龙头", "官网": "https://www.feihe.com/"},
+            {"排名": "05", "企业名称": "现代牧业（集团）有限公司", "股票代码": "01117.HK", "核心规模/产量": "奶牛存栏超 45 万头，年产原奶超 250 万吨", "市值估算": "约 70 亿港元", "核心定位": "中国最大原料奶生产商，万头牧场模式开创者", "官网": "http://www.moderndairycn.com/"},
+            {"排名": "06", "企业名称": "内蒙古优然牧业有限责任公司", "股票代码": "09858.HK", "核心规模/产量": "奶牛存栏近 60 万头，全球原料奶领跑者", "市值估算": "约 75 亿港元", "核心定位": "涵盖育种、饲料、草业与原奶的上游全产业链", "官网": "https://www.yourandairy.com/"},
+            {"排名": "07", "企业名称": "新希望乳业股份有限公司 (新乳业)", "股票代码": "002946.SZ", "核心规模/产量": "营收超百亿元，区域鲜奶联合体代表", "市值估算": "约 110 亿元", "核心定位": "“鲜立方”战略主导，全国多区域低温乳业联合体", "官网": "http://www.newdairy.cn/"},
+            {"排名": "08", "企业名称": "北京三元食品股份有限公司", "股票代码": "600429.SH", "核心规模/产量": "北京及华北地区老字号全产业链乳企", "市值估算": "约 65 亿元", "核心定位": "首都高品质奶源保障，特种配方与学生饮用奶", "官网": "http://www.sanyuan.com.cn/"},
+            {"排名": "09", "企业名称": "中国圣牧有机奶业有限公司", "股票代码": "01432.HK", "核心规模/产量": "沙漠有机原奶年产超 60 万吨", "市值估算": "约 25 亿港元", "核心定位": "全球最大沙漠有机生鲜乳供应商，治沙生态标杆", "官网": "http://www.shengmudairy.com/"},
+            {"排名": "10", "企业名称": "上海妙可蓝多食品科技股份有限公司", "股票代码": "600882.SH", "核心规模/产量": "中国奶酪品类第一品牌（蒙牛控股）", "市值估算": "约 75 亿元", "核心定位": "聚焦奶酪创新研发，领跑高附加值奶酪制品市场", "官网": "http://www.milkground.cn/"}
+        ]
+        for c in cow_leaders:
+            with st.container():
+                cc1, cc2, cc3, cc4 = st.columns([1, 4, 3, 2])
+                cc1.markdown(f"### `{c['排名']}`")
+                cc2.markdown(f"**[{c['企业名称']}]({c['官网']})** `{c['股票代码']}`\n\n📌 {c['核心定位']}")
+                cc3.markdown(f"🥛 **规模**: {c['核心规模/产量']}\n\n💰 **市值**: {c['市值估算']}")
+                cc4.link_button(f"🌐 访问官网", c['官网'], use_container_width=True)
+                st.markdown("<hr style='margin:4px 0; border: none; border-top: 1px dashed #333;'>", unsafe_allow_html=True)
+
+    with tab_f3:
+        st.subheader("📈 畜牧活体、原奶、牛肉及核心饲料原料大宗期货行情一键直达")
+        st.caption("💡 畜牧产业受“猪周期”、原料成本（饲料占养殖总成本 60%–70%）与终端消费价格波动影响极大。期货及衍生品是大中型牧场规避价格波动风险、锁定饲喂成本与销售利润（套期保值）的必备金融工具。")
+        
+        st.markdown("#### 1️⃣ 畜禽与肉类核心大宗期货 (Livestock & Dairy Futures)")
+        col_q1, col_q2, col_q3 = st.columns(3)
+        with col_q1:
+            st.markdown("""
+            **🐖 生猪期货 (Live Hog)**
+            - **交易所**: 大连商品交易所 (DCE: `LH`)
+            - **交易单位**: 16 吨/手，实物活体交割
+            - **功能**: 生猪养殖企业平抑“猪周期”波动核心工具
+            """)
+            st.link_button("📊 大商所生猪期货规则与合约指南", "http://www.dce.com.cn/dalianshangpin/sspz/sz/index.html", use_container_width=True)
+            st.link_button("📈 东方财富生猪主连实时行情走势", "https://quote.eastmoney.com/qihuo/lhm.html", use_container_width=True)
+            st.link_button("🌐 新浪财经生猪期货分时与日K线", "https://gu.sina.cn/ft/hq/nf.php?symbol=lh0", use_container_width=True)
+
+        with col_q2:
+            st.markdown("""
+            **🥛 牛奶 / 原奶期货 (Milk Class III)**
+            - **交易所**: 芝加哥商业交易所 (CME: `DC`)
+            - **交易标的**: 制造奶酪用 Class III 生鲜乳 (20万磅/手)
+            - **功能**: 全球乳制品贸易与原奶价格风向标
+            """)
+            st.link_button("📊 芝商所 CME Class III 牛奶期货合约", "https://www.cmegroup.com/markets/agriculture/dairy/class-iii-milk.html", use_container_width=True)
+            st.link_button("📈 英为财情国际原奶期货实时行情", "https://cn.investing.com/commodities/class-iii-milk", use_container_width=True)
+
+        with col_q3:
+            st.markdown("""
+            **🥩 牛肉 / 活牛期货 (Live & Feeder Cattle)**
+            - **交易所**: 芝加哥商业交易所 (CME: `LE` / `FC`)
+            - **交易标的**: 活牛 (Live Cattle) 与 育肥牛 (Feeder Cattle)
+            - **功能**: 全球肉牛育肥与牛肉加工产业套期保值
+            """)
+            st.link_button("📊 芝商所 CME 活牛期货合约详情", "https://www.cmegroup.com/markets/agriculture/livestock/live-cattle.html", use_container_width=True)
+            st.link_button("📈 芝商所 CME 育肥牛期货合约走势", "https://www.cmegroup.com/markets/agriculture/livestock/feeder-cattle.html", use_container_width=True)
+            st.link_button("🌐 东方财富全球商品期货行情中心", "https://futures.eastmoney.com/", use_container_width=True)
+
+        st.markdown("---")
+        st.markdown("#### 2️⃣ 各种核心饲料原料期货 (Feed Raw Material Futures)")
+        st.caption("🌽 饲料原料成本占生猪与奶牛养殖完全成本的 60%–70% 以上，是牧场成本核算与指标敏感性分析的最核心影响变量：")
+        
+        c_fd1, c_fd2, c_fd3 = st.columns(3)
+        with c_fd1:
+            st.markdown("""
+            **🌱 豆粕期货 (Soybean Meal)**
+            - **交易所**: 大连商品交易所 (DCE: `M`)
+            - **地位**: 蛋白饲料第一大原料（粗蛋白≥43%）
+            - **直接影响**: 仔猪、母猪及泌乳牛配方饲料成本
+            """)
+            st.link_button("📈 豆粕主连实时行情 (东方财富)", "https://quote.eastmoney.com/qihuo/mm.html", use_container_width=True)
+            st.link_button("🌐 豆粕连续行情K线 (新浪财经)", "https://gu.sina.cn/ft/hq/nf.php?symbol=M0", use_container_width=True)
+
+        with c_fd2:
+            st.markdown("""
+            **🌽 玉米期货 (Corn)**
+            - **交易所**: 大连商品交易所 (DCE: `C`)
+            - **地位**: 畜禽能量饲料之王，配方占比50%-60%
+            - **直接影响**: 育肥猪增重与高产奶牛高能量日粮成本
+            """)
+            st.link_button("📈 玉米主连实时行情 (东方财富)", "https://quote.eastmoney.com/qihuo/cm.html", use_container_width=True)
+            st.link_button("🌐 玉米连续走势K线 (新浪财经)", "https://gu.sina.cn/ft/hq/nf.php?symbol=C0", use_container_width=True)
+
+        with c_fd3:
+            st.markdown("""
+            **🌿 菜粕期货 (Rapeseed Meal)**
+            - **交易所**: 郑州商品交易所 (CZCE: `RM`)
+            - **地位**: 优质植物蛋白原料，豆粕重要替代品
+            - **直接影响**: 反刍动物粗蛋白日粮与性价比调控
+            """)
+            st.link_button("📈 菜粕主连实时行情 (东方财富)", "https://quote.eastmoney.com/qihuo/rmm.html", use_container_width=True)
+
+        c_fd4, c_fd5, c_fd6 = st.columns(3)
+        with c_fd4:
+            st.markdown("""
+            **💧 豆油期货 (Soybean Oil)**
+            - **交易所**: 大连商品交易所 (DCE: `Y`)
+            - **地位**: 高能量饲用油脂，抗热应激配方添加剂
+            """)
+            st.link_button("📈 豆油主连行情 (东方财富)", "https://quote.eastmoney.com/qihuo/ym.html", use_container_width=True)
+        with c_fd5:
+            st.markdown("""
+            **🌾 玉米淀粉期货 (Corn Starch)**
+            - **交易所**: 大连商品交易所 (DCE: `CS`)
+            - **地位**: 玉米深加工核心标的，关联饲料副产品定价
+            """)
+            st.link_button("📈 玉米淀粉主连行情 (东方财富)", "https://quote.eastmoney.com/qihuo/csm.html", use_container_width=True)
+        with c_fd6:
+            st.markdown("""
+            **🍞 强麦 / 小麦期货 (Wheat)**
+            - **交易所**: 郑州商品交易所 (CZCE: `WH`)
+            - **地位**: 能量饲料中玉米的重要价差替代原料
+            """)
+            st.link_button("📈 强麦主连行情 (东方财富)", "https://quote.eastmoney.com/qihuo/whm.html", use_container_width=True)
+
 # 六、控制台侧边栏：多源数据驱动与上传模版服务
 # =====================================================================
 with st.sidebar:
@@ -684,7 +842,15 @@ with st.sidebar:
     - **容错隔离计算底座**：空指标不崩溃，好指标照样算
     - **一键下载标准模版，本地补数即刻生效**
     """)
-    st.caption("版本：V2.3 智慧牧业工程数据精简版 | 2026-10-22")
+    st.markdown("---")
+    st.subheader("📬 开发者联系方式")
+    st.markdown("""
+    - **QQ**: `3100785036`
+    - **WeChat (微信)**: `13679275651`
+    - **项目作者**: 李尧 (学号: `2024010983`)
+    - **培养单位**: 中国西北农林科技大学 动物科技学院
+    """)
+    st.caption("版本：V2.4 产业金融与独立版权声明版 | 2026-10-22")
 
 # =====================================================================
 # 七、主界面逻辑驱动与状态流转
@@ -788,9 +954,10 @@ if is_pig:
                     target_delta="预警线 1.5%", threshold=0.015, inverse=True, missing_hint="待补病死记录")
 
     st.markdown("---")
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📊 生产与经营看板", "🛡️ 健康合规与异常预警", 
-        "📖 生猪核心指标字典库 (75表映射)", "📑 原始档案台账与质量体检", "📥 测算结果与模版导出"
+        "📖 生猪核心指标字典库 (75表映射)", "📑 原始档案台账与质量体检", "📥 测算结果与模版导出",
+        "💹 产业金融与龙头生态"
     ])
 
     with tab1:
@@ -979,6 +1146,9 @@ if is_pig:
                     use_container_width=True
                 )
 
+    with tab6:
+        render_finance_section(default_kind="生猪")
+
 else:
     # ----------------- 奶牛顶部卡片 -----------------
     c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -1008,9 +1178,10 @@ else:
                     missing_hint="待补原奶售价与成本")
 
     st.markdown("---")
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "🥛 产奶与经营看板", "🛡️ 健康合规与DHI预警", 
-        "📖 奶牛核心指标字典库 (75表映射)", "📑 奶牛生产台账与质量体检", "📥 测算结果与模版导出"
+        "📖 奶牛核心指标字典库 (75表映射)", "📑 奶牛生产台账与质量体检", "📥 测算结果与模版导出",
+        "💹 产业金融与龙头生态"
     ])
 
     with tab1:
@@ -1222,5 +1393,24 @@ else:
                     use_container_width=True
                 )
 
+    with tab6:
+        render_finance_section(default_kind="奶牛")
+
 st.markdown("---")
-st.markdown("© 2026 智慧牧业工程 · 生猪与奶牛双畜种数字化养殖档案与指标计算演示系统 (V2.2)")
+st.info("""
+**⚖️ 项目独立进行与知识产权严正声明 (Project Declaration)**
+
+**中文声明**：  
+该项目由**中国西北农林科技大学动物科技学院李尧（学号：2024010983）**于 2026 年 10 月独立进行，仅供交流学习，不得擅自进行论文发表及商用。任何未经许可的学术论文撰写发表、专利申请、商业软件封装或盈利性运营行为均属侵权。
+
+**English Statement**:  
+*This project was independently developed and conducted in October 2026 by Li Yao (Student ID: 2024010983) from the College of Animal Science and Technology, Northwest A&F University. It is strictly intended for academic communication and educational study only. Unauthorized academic publication, thesis submission, software redistribution, or commercial use is strictly prohibited.*
+
+**📬 开发者联系方式 (Developer Contact)**:  
+- **QQ**: `3100785036`  
+- **WeChat (微信)**: `13679275651`  
+- **机构**: 中国西北农林科技大学 动物科技学院 (College of Animal Science and Technology, Northwest A&F University)
+""")
+
+st.markdown("---")
+st.markdown("© 2026 智慧牧业工程 · 李尧 2024010983 · 中国西北农林科技大学动物科技学院 · 生猪与奶牛双畜种数字化养殖档案与指标计算演示系统 (V2.4)")

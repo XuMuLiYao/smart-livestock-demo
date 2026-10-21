@@ -3,11 +3,10 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：畜牧图情结合 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
-升级亮点（2026-10-22 第3次改动）：
-  1. 上传模版下载与在线预览：为“自定义生猪生产Excel”与“自定义奶牛生产Excel”提供标准采集模版，支持在网页端直接预览字段结构与规范，支持一键下载到本地补全数值后上传
-  2. 容错隔离计算引擎：重构生猪与奶牛全套28项核心指标计算逻辑，单项指标为空或出现除零/异常时实现完全隔离，绝不影响其他独立生产与经营指标的正常推演
-  3. 空指标与异常指标UI优化：顶部卡片、走势图表、饼图与数据表格全面适配缺失/异常状态，支持友好展位占位与缺失字段指引，新增台账数据质量与指标就绪度体检看板
-  4. 严格保持《畜牧法》与 NY/T 3445-2019 法定合规依据与双畜种全闭环业务底座
+升级亮点（2026-10-22 第4次改动）：
+  1. 精简数据源结构：生猪保留“默认500头母猪基准演练模型”与“上传自定义生猪生产 Excel”，奶牛保留“默认1000头成母牛现代牧场示范数据”与“上传自定义奶牛生产 Excel (.xlsx)”，移除其他冗余数据源
+  2. 品牌与语义表述规范化：将“畜牧图情结合示范工程”“畜牧图情结合示范项目”统一规范表述为“智慧牧业工程”，将“数据底座”规范表述为“数据”
+  3. 严格保持《畜牧法》与 NY/T 3445-2019 法定合规依据与双畜种全闭环业务与容错隔离引擎
 """
 import streamlit as st
 import pandas as pd
@@ -631,18 +630,13 @@ with st.sidebar:
 
     if is_pig:
         source_options = [
-            "① 默认500头母猪基准演练模型",
-            "② 本地《生猪养殖核心指标库与可行性验证.xlsx》",
-            "③ 本地《畜禽养殖档案管理表格（全套）.xlsx》",
-            "④ 🎲 随机生成：万头规模场2026年度生产台账",
-            "⑤ 上传自定义生猪生产 Excel (.xlsx)"
+            "默认500头母猪基准演练模型",
+            "上传自定义生猪生产 Excel"
         ]
     else:
         source_options = [
-            "① 默认1000头成母牛现代牧场示范数据",
-            "② 本地《奶牛养殖核心指标库与可行性验证.xlsx》",
-            "③ 本地《畜禽养殖档案管理表格（全套）.xlsx》（含02-18表）",
-            "④ 上传自定义奶牛生产 Excel (.xlsx)"
+            "默认1000头成母牛现代牧场示范数据",
+            "上传自定义奶牛生产 Excel (.xlsx)"
         ]
 
     data_source_choice = st.selectbox("请选择要载入的数据来源：", source_options)
@@ -690,7 +684,7 @@ with st.sidebar:
     - **容错隔离计算底座**：空指标不崩溃，好指标照样算
     - **一键下载标准模版，本地补数即刻生效**
     """)
-    st.caption("版本：V2.2 容错计算与模版驱动增强版 | 2026-10-22")
+    st.caption("版本：V2.3 智慧牧业工程数据精简版 | 2026-10-22")
 
 # =====================================================================
 # 七、主界面逻辑驱动与状态流转
@@ -709,27 +703,14 @@ if is_pig:
             st.error(f"⚠️ 解析上传文件时遇到格式问题: {e}，系统已自动平滑切回基准模型以保证大屏展示正常。")
             df_raw = get_default_pig_data()
             df_calc, kpi = compute_pig_metrics(df_raw)
-    elif "生猪养殖核心指标库" in data_source_choice or "①" in data_source_choice:
+    elif "上传自定义" in data_source_choice:
         df_raw = get_default_pig_data()
         df_calc, kpi = compute_pig_metrics(df_raw)
-        status_msg = "已载入《生猪养殖核心指标库与可行性验证》500头规模场基准模型"
-    elif "万头规模场" in data_source_choice:
-        if RANDOM_PIG_TEST_PATH.exists():
-            try:
-                df_raw = parse_uploaded_excel(RANDOM_PIG_TEST_PATH, "生猪")
-            except:
-                df_raw = get_default_pig_data()
-        else:
-            df_raw = get_default_pig_data()
-            df_raw['出生活仔'] = (df_raw['出生活仔'] * 1.25).astype(int)
-            df_raw['出栏'] = (df_raw['出栏'] * 1.25).astype(int)
-            df_raw['断奶仔猪'] = (df_raw['出生活仔'] * 0.96).astype(int)
-        df_calc, kpi = compute_pig_metrics(df_raw)
-        status_msg = "已载入随机生成的 2026 年度高产万头猪场真实测试台账"
+        status_msg = "等待上传自定义生猪生产 Excel（当前展示默认500头母猪基准演练模型）"
     else:
         df_raw = get_default_pig_data()
         df_calc, kpi = compute_pig_metrics(df_raw)
-        status_msg = "已关联全套法定档案管理表格（生猪养殖台账）"
+        status_msg = "已载入默认500头母猪基准演练模型"
     df_dict = load_kpi_dict("生猪")
 else:
     # 奶牛分支
@@ -743,19 +724,19 @@ else:
             st.error(f"⚠️ 解析上传文件时遇到格式问题: {e}，系统已自动平滑切回基准模型以保证大屏展示正常。")
             df_raw = get_default_cow_data()
             df_calc, kpi = compute_cow_metrics(df_raw)
-    elif "全套" in data_source_choice:
+    elif "上传自定义" in data_source_choice:
         df_raw = get_default_cow_data()
         df_calc, kpi = compute_cow_metrics(df_raw)
-        status_msg = "已关联全套法定档案表（已升级 02-18 奶牛产奶与 DHI 检测专项台账）"
+        status_msg = "等待上传自定义奶牛生产 Excel（当前展示默认1000头成母牛现代牧场示范数据）"
     else:
         df_raw = get_default_cow_data()
         df_calc, kpi = compute_cow_metrics(df_raw)
-        status_msg = "已载入《奶牛养殖核心指标库与可行性验证》1000头成母牛牧场示范模型"
+        status_msg = "已载入默认1000头成母牛现代牧场示范数据"
     df_dict = load_kpi_dict("奶牛")
 
 # 主标题与法定政策依据标注
 st.title("📊 智慧畜牧数字化管理与核心经营指标大屏")
-st.markdown("##### 畜牧图情结合示范工程 · 法定养殖档案数据底座 + 多畜种经营指标闭环演算")
+st.markdown("##### 智慧牧业工程 · 法定养殖档案数据 + 多畜种经营指标闭环演算")
 
 st.caption(
     "📜 **法定养殖档案政策依据**：根据《中华人民共和国畜牧法》（第四十一条）、《中华人民共和国动物防疫法》、"
@@ -1242,4 +1223,4 @@ else:
                 )
 
 st.markdown("---")
-st.markdown("© 2026 畜牧图情结合示范项目 · 生猪与奶牛双畜种数字化养殖档案与指标计算演示系统 (V2.2)")
+st.markdown("© 2026 智慧牧业工程 · 生猪与奶牛双畜种数字化养殖档案与指标计算演示系统 (V2.2)")

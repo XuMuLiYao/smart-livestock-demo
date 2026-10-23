@@ -3,6 +3,11 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-23 第10次改动）：
+  0. 重构八大畜种「生产台账采集与指标计算上传模版」子目录寻址与多级容错访问网络 (V3.10)：
+     - 专属子目录规范归档：将八大畜禽（生猪、奶牛、肉牛、奶山羊、肉羊、皮用羊、蛋鸡、肉鸡）标准采集模版统一收归至 smart_pig_demo/生产台账采集与指标计算上传模版/ 专属资产目录
+     - 页面访问与下载路径全量重定向：更新侧边栏自定义数据上传获取入口与底部综合导出板块，全部无缝导向专属模版子目录
+     - 多级弹性寻址容错保障：升级 get_template_info 与 load_template_preview_df 函数，构建子目录优先、工程根目录与指标库目录兜底的自适应寻址架构
 升级亮点（2026-10-23 第9次改动）：
   0. 彻底根除管理员权限认证被任意设备越权绕过的漏洞，实施严格双因子硬件鉴权闭环 (V3.9)：
      - 封堵任意设备登录漏洞：废除此前在前端下拉框中直接展示并自动预选授权硬件指纹的缺陷，彻底切断未授权终端冒领凭据路径
@@ -155,14 +160,17 @@ FUR_KPI_PATH = KPI_DIR / "皮用羊生产核心指标库与可行性验证.xlsx"
 LAYER_KPI_PATH = KPI_DIR / "蛋鸡养殖核心指标库与可行性验证.xlsx"
 BROILER_KPI_PATH = KPI_DIR / "肉鸡养殖核心指标库与可行性验证.xlsx"
 
-PIG_TEMPLATE_PATH = CURRENT_DIR / "生猪生产台账采集与指标计算上传模板.xlsx"
-COW_TEMPLATE_PATH = CURRENT_DIR / "奶牛生产台账采集与指标计算上传模板.xlsx"
-BEEF_TEMPLATE_PATH = CURRENT_DIR / "肉牛生产台账采集与指标计算上传模板.xlsx"
-GOAT_TEMPLATE_PATH = CURRENT_DIR / "奶山羊生产台账采集与指标计算上传模板.xlsx"
-SHEEP_TEMPLATE_PATH = CURRENT_DIR / "肉羊生产台账采集与指标计算上传模板.xlsx"
-FUR_TEMPLATE_PATH = CURRENT_DIR / "皮用羊生产台账采集与指标计算上传模板.xlsx"
-LAYER_TEMPLATE_PATH = CURRENT_DIR / "蛋鸡生产台账采集与指标计算上传模板.xlsx"
-BROILER_TEMPLATE_PATH = CURRENT_DIR / "肉鸡生产台账采集与指标计算上传模板.xlsx"
+# 生产台账采集与指标计算上传模版专属归档子目录
+TEMPLATE_DIR = CURRENT_DIR / "生产台账采集与指标计算上传模版"
+
+PIG_TEMPLATE_PATH = TEMPLATE_DIR / "生猪生产台账采集与指标计算上传模板.xlsx"
+COW_TEMPLATE_PATH = TEMPLATE_DIR / "奶牛生产台账采集与指标计算上传模板.xlsx"
+BEEF_TEMPLATE_PATH = TEMPLATE_DIR / "肉牛生产台账采集与指标计算上传模板.xlsx"
+GOAT_TEMPLATE_PATH = TEMPLATE_DIR / "奶山羊生产台账采集与指标计算上传模板.xlsx"
+SHEEP_TEMPLATE_PATH = TEMPLATE_DIR / "肉羊生产台账采集与指标计算上传模板.xlsx"
+FUR_TEMPLATE_PATH = TEMPLATE_DIR / "皮用羊生产台账采集与指标计算上传模板.xlsx"
+LAYER_TEMPLATE_PATH = TEMPLATE_DIR / "蛋鸡生产台账采集与指标计算上传模板.xlsx"
+BROILER_TEMPLATE_PATH = TEMPLATE_DIR / "肉鸡生产台账采集与指标计算上传模板.xlsx"
 
 # 行业新闻与咨询投稿多级持久化存储网络（应用本地、指标库镜像、永久日志归档与宿主灾备目录）
 SUBMISSION_EXCEL_PATH = CURRENT_DIR / "行业新闻与咨询投稿登记表.xlsx"
@@ -192,15 +200,42 @@ SPECIES_TEMPLATE_DICT = {
 }
 
 def get_template_info(animal_choice):
+    target_key = "生猪"
+    target_fname = "生猪生产台账采集与指标计算上传模板.xlsx"
+    target_path = PIG_TEMPLATE_PATH
+
     for key, (fname, pth) in SPECIES_TEMPLATE_DICT.items():
         if key in animal_choice:
-            return key, fname, pth
-    return "生猪", "生猪生产台账采集与指标计算上传模板.xlsx", PIG_TEMPLATE_PATH
+            target_key, target_fname, target_path = key, fname, pth
+            break
+
+    # 弹性多级寻址容错保障：优先专属模版子目录，兜底回退根目录与指标库目录
+    candidate_paths = [
+        target_path,
+        TEMPLATE_DIR / target_fname,
+        CURRENT_DIR / target_fname,
+        KPI_DIR / target_fname,
+        ROOT_DIR / "表格与指标库" / target_fname
+    ]
+    resolved_path = target_path
+    for cp in candidate_paths:
+        if cp.exists():
+            resolved_path = cp
+            break
+
+    return target_key, target_fname, resolved_path
 
 def load_template_preview_df(template_path):
-    if template_path.exists():
+    target_p = template_path
+    if not target_p.exists():
+        for cand in [TEMPLATE_DIR / target_p.name, CURRENT_DIR / target_p.name, KPI_DIR / target_p.name]:
+            if cand.exists():
+                target_p = cand
+                break
+
+    if target_p.exists():
         try:
-            xl = pd.ExcelFile(template_path)
+            xl = pd.ExcelFile(target_p)
             s1 = xl.sheet_names[0]
             df_raw = xl.parse(s1, header=None)
             header_idx = 2

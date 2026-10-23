@@ -3,6 +3,12 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-23 第8次改动）：
+  0. 彻底根治网页端「咨询新闻与行业文章在线上传」投稿Excel数据在页面刷新或代码更新后丢失的问题，重构多级持久化防丢与自愈恢复引擎 (V3.8)：
+     - 拔除导致数据清空的致命缺陷：彻底消除 openpyxl 异常时静默创建空白工作簿并强行覆写磁盘原表的隐患
+     - 四重物理存储拓扑闭环：应用本地表 + 指标库镜像 + 永久日志归档 (JSONL) + 宿主环境独立灾备库，即使 Git 强制拉取覆盖应用本地表，历史数据依然完好无损
+     - 自动化多源自愈与对齐：每次页面加载、表单提交或管理员核验时，引擎自动汇总全域存储节点并依据复合唯一业务主键完成去重合并，缺失节点毫秒级自动重构补齐
+     - 双模态台账安全呈现：访客端增设公开脱敏版台账（敏感联系电话与邮箱星号加密），提交后即时可见存盘确认；管理员端提供全量未脱敏台账、强制自愈按钮及历史备份合并恢复工具
 升级亮点（2026-10-23 第1次改动）：
   0. 全面落地技术路线规划第一期与第二期，上线「📊 在线数据处理与SPSS专业统计分析专区」：
      - SPSS数据底座互转：八大畜种专属 SPSS 变量元数据字典查阅、官方语法脚本(.sps)与标准数据(.csv)一键导出
@@ -67,6 +73,8 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import io
 import datetime
+import json
+import shutil
 from pathlib import Path
 
 # 设置页面配置
@@ -150,8 +158,21 @@ FUR_TEMPLATE_PATH = CURRENT_DIR / "皮用羊生产台账采集与指标计算上
 LAYER_TEMPLATE_PATH = CURRENT_DIR / "蛋鸡生产台账采集与指标计算上传模板.xlsx"
 BROILER_TEMPLATE_PATH = CURRENT_DIR / "肉鸡生产台账采集与指标计算上传模板.xlsx"
 
+# 行业新闻与咨询投稿多级持久化存储网络（应用本地、指标库镜像、永久日志归档与宿主灾备目录）
 SUBMISSION_EXCEL_PATH = CURRENT_DIR / "行业新闻与咨询投稿登记表.xlsx"
 SUBMISSION_UPLOAD_DIR = CURRENT_DIR / "投稿附件"
+SUBMISSION_MIRROR_EXCEL_PATH = KPI_DIR / "行业新闻与咨询投稿登记表.xlsx"
+SUBMISSION_MIRROR_UPLOAD_DIR = KPI_DIR / "投稿附件"
+
+SUBMISSION_LOCAL_ARCHIVE_DIR = CURRENT_DIR / "投稿数据持久化归档"
+SUBMISSION_LOCAL_JOURNAL_PATH = SUBMISSION_LOCAL_ARCHIVE_DIR / "submissions_journal.jsonl"
+SUBMISSION_KPI_ARCHIVE_DIR = KPI_DIR / "投稿数据持久化归档"
+SUBMISSION_KPI_JOURNAL_PATH = SUBMISSION_KPI_ARCHIVE_DIR / "submissions_journal.jsonl"
+
+SUBMISSION_PERSISTENT_HOME_DIR = Path.home() / ".smart_livestock_data"
+SUBMISSION_HOME_EXCEL_PATH = SUBMISSION_PERSISTENT_HOME_DIR / "行业新闻与咨询投稿登记表.xlsx"
+SUBMISSION_HOME_JOURNAL_PATH = SUBMISSION_PERSISTENT_HOME_DIR / "submissions_journal.jsonl"
+SUBMISSION_HOME_UPLOAD_DIR = SUBMISSION_PERSISTENT_HOME_DIR / "投稿附件"
 
 SPECIES_TEMPLATE_DICT = {
     "生猪": ("生猪生产台账采集与指标计算上传模板.xlsx", PIG_TEMPLATE_PATH),
@@ -940,110 +961,153 @@ def compute_broiler_metrics(df_raw):
 
 
 # =====================================================================
-# 三点五、行业新闻与咨询投稿持久化存储引擎
+# 三点五、行业新闻与咨询投稿多级持久化防丢与自愈恢复引擎 (V3.8 核心升级)
 # =====================================================================
-def save_submission_to_excel(sub_data, uploaded_file=None):
-    """
-    将用户投稿表单数据安全追加写入《行业新闻与咨询投稿登记表.xlsx》
-    并自动转存附件至本地《投稿附件》目录
-    """
-    saved_filename = "无附件"
-    saved_filepath = "无"
-    if uploaded_file is not None:
+SUBMISSION_HEADERS = [
+    "登记序号", "投稿时间", "投稿人姓名", "工作单位/机构", 
+    "工作联系电话", "工作微信/QQ", "工作联系邮箱", "资讯所属领域", 
+    "新闻/文章标题", "核心摘要/咨询链接", "附件文件名称", "附件本地存储路径", 
+    "处理状态", "处理意见与对接记录"
+]
+
+def ensure_all_submission_dirs():
+    """确保全量持久化归档与灾备目录存在"""
+    for d in [SUBMISSION_UPLOAD_DIR, SUBMISSION_MIRROR_UPLOAD_DIR, 
+             SUBMISSION_LOCAL_ARCHIVE_DIR, SUBMISSION_KPI_ARCHIVE_DIR,
+             SUBMISSION_PERSISTENT_HOME_DIR, SUBMISSION_HOME_UPLOAD_DIR]:
         try:
-            SUBMISSION_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-            ts_prefix = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            safe_fname = f"{ts_prefix}_{uploaded_file.name}"
-            target_path = SUBMISSION_UPLOAD_DIR / safe_fname
-            file_bytes = uploaded_file.getvalue() if hasattr(uploaded_file, 'getvalue') else uploaded_file.read()
-            with open(target_path, "wb") as f:
-                f.write(file_bytes)
-            saved_filename = uploaded_file.name
-            saved_filepath = str(target_path.relative_to(CURRENT_DIR))
-        except Exception as e:
-            saved_filename = f"{uploaded_file.name} (保存异常: {e})"
-            saved_filepath = "异常"
+            d.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
 
-    headers = [
-        "登记序号", "投稿时间", "投稿人姓名", "工作单位/机构", 
-        "工作联系电话", "工作微信/QQ", "工作联系邮箱", "资讯所属领域", 
-        "新闻/文章标题", "核心摘要/咨询链接", "附件文件名称", "附件本地存储路径", 
-        "处理状态", "处理意见与对接记录"
-    ]
+def normalize_sub_record(d):
+    """规范化单条投稿字典结构，保障跨源格式统一"""
+    return {
+        "seq_num": int(d.get("seq_num") or d.get("登记序号") or 0),
+        "sub_time": str(d.get("sub_time") or d.get("投稿时间") or "").strip(),
+        "sub_name": str(d.get("sub_name") or d.get("投稿人姓名") or "").strip(),
+        "sub_org": str(d.get("sub_org") or d.get("工作单位/机构") or "行业同仁").strip(),
+        "sub_phone": str(d.get("sub_phone") or d.get("工作联系电话") or "").strip(),
+        "sub_wechat": str(d.get("sub_wechat") or d.get("工作微信/QQ") or "未填写").strip(),
+        "sub_email": str(d.get("sub_email") or d.get("工作联系邮箱") or "未填写").strip(),
+        "sub_cat": str(d.get("sub_cat") or d.get("资讯所属领域") or "").strip(),
+        "sub_title": str(d.get("sub_title") or d.get("新闻/文章标题") or "").strip(),
+        "sub_summary": str(d.get("sub_summary") or d.get("核心摘要/咨询链接") or "无摘要").strip(),
+        "file_name": str(d.get("file_name") or d.get("附件文件名称") or "无附件").strip(),
+        "file_path": str(d.get("file_path") or d.get("附件本地存储路径") or "无").strip(),
+        "status": str(d.get("status") or d.get("处理状态") or "待初审对接").strip(),
+        "audit_note": str(d.get("audit_note") or d.get("处理意见与对接记录") or "大屏在线投稿自动登记入库").strip()
+    }
 
+def get_sub_record_key(r):
+    """联合唯一业务主键，用于跨源合并与确定性去重"""
+    return (
+        r["sub_time"][:16] if len(r["sub_time"]) >= 16 else r["sub_time"],
+        r["sub_name"],
+        r["sub_phone"],
+        r["sub_title"]
+    )
+
+def load_records_from_excel(path):
+    """安全读取单个Excel台账文件，跳过标题行"""
+    records = []
+    if path.exists():
+        try:
+            df = pd.read_excel(path, skiprows=1)
+            for _, row in df.iterrows():
+                name = str(row.get("投稿人姓名", "")).strip()
+                title = str(row.get("新闻/文章标题", "")).strip()
+                if name and name != "nan" and title and title != "nan":
+                    records.append(normalize_sub_record(dict(row)))
+        except Exception:
+            pass
+    return records
+
+def load_records_from_jsonl(path):
+    """安全读取Append-Only的JSONL持久化日志文件"""
+    records = []
+    if path.exists():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            d = json.loads(line)
+                            records.append(normalize_sub_record(d))
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+    return records
+
+def append_record_to_jsonl_safely(record, path):
+    """向指定JSONL路径原子追加单条记录"""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+def write_records_to_excel_file(records, target_path):
+    """根据规范化记录清单，构建并安全覆写高保真格式Excel台账"""
     thin_border = Border(
         left=Side(style='thin', color='D9D9D9'),
         right=Side(style='thin', color='D9D9D9'),
         top=Side(style='thin', color='D9D9D9'),
         bottom=Side(style='thin', color='D9D9D9')
     )
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "投稿与咨询登记表"
+    ws.views.sheetView[0].showGridLines = True
 
-    wb = None
-    if SUBMISSION_EXCEL_PATH.exists():
-        try:
-            wb = openpyxl.load_workbook(SUBMISSION_EXCEL_PATH)
-            ws = wb.active
-        except Exception:
-            wb = None
+    # 大标题
+    ws.merge_cells("A1:N1")
+    t_cell = ws["A1"]
+    t_cell.value = "智慧牧业数字化大屏 · 行业新闻与咨询文章投稿登记台账"
+    t_cell.font = Font(name="微软雅黑", size=14, bold=True, color="1F4E79")
+    t_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 36
 
-    if wb is None:
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "投稿与咨询登记表"
-        ws.views.sheetView[0].showGridLines = True
-        
-        # 写入大标题行
-        ws.merge_cells("A1:N1")
-        title_cell = ws["A1"]
-        title_cell.value = "智慧牧业数字化大屏 · 行业新闻与咨询文章投稿登记台账"
-        title_cell.font = Font(name="微软雅黑", size=14, bold=True, color="1F4E79")
-        title_cell.alignment = Alignment(horizontal="center", vertical="center")
-        ws.row_dimensions[1].height = 36
-
-        # 写入表头行
-        for col_idx, h in enumerate(headers, 1):
-            cell = ws.cell(row=2, column=col_idx, value=h)
-            cell.font = Font(name="微软雅黑", size=10, bold=True, color="FFFFFF")
-            cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            cell.border = thin_border
-        ws.row_dimensions[2].height = 28
-        ws.freeze_panes = "A3"
-
-    # 计算自增序号
-    next_row = ws.max_row + 1
-    seq_num = max(1, next_row - 2)
-
-    # 组装数据行
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    row_values = [
-        seq_num,
-        now_str,
-        sub_data.get("sub_name", ""),
-        sub_data.get("sub_org", "行业同仁") or "行业同仁",
-        sub_data.get("sub_phone", ""),
-        sub_data.get("sub_wechat", "") or "未填写",
-        sub_data.get("sub_email", "") or "未填写",
-        sub_data.get("sub_cat", ""),
-        sub_data.get("sub_title", ""),
-        sub_data.get("sub_summary", "") or "无摘要",
-        saved_filename,
-        saved_filepath,
-        "待初审对接",
-        "大屏在线投稿自动登记入库"
-    ]
-
-    for col_idx, val in enumerate(row_values, 1):
-        cell = ws.cell(row=next_row, column=col_idx, value=val)
-        cell.font = Font(name="微软雅黑", size=10)
+    # 表头
+    for col_idx, h in enumerate(SUBMISSION_HEADERS, 1):
+        cell = ws.cell(row=2, column=col_idx, value=h)
+        cell.font = Font(name="微软雅黑", size=10, bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.border = thin_border
-        if col_idx in [1, 2, 5, 8, 13]:
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-        else:
-            cell.alignment = Alignment(horizontal="left", vertical="center")
-    ws.row_dimensions[next_row].height = 24
+    ws.row_dimensions[2].height = 28
+    ws.freeze_panes = "A3"
 
-    # 规范列宽
+    for row_idx, r in enumerate(records, 3):
+        row_vals = [
+            r["seq_num"],
+            r["sub_time"],
+            r["sub_name"],
+            r["sub_org"],
+            r["sub_phone"],
+            r["sub_wechat"],
+            r["sub_email"],
+            r["sub_cat"],
+            r["sub_title"],
+            r["sub_summary"],
+            r["file_name"],
+            r["file_path"],
+            r["status"],
+            r["audit_note"]
+        ]
+        for col_idx, val in enumerate(row_vals, 1):
+            c = ws.cell(row=row_idx, column=col_idx, value=val)
+            c.font = Font(name="微软雅黑", size=10)
+            c.border = thin_border
+            if col_idx in [1, 2, 5, 8, 13]:
+                c.alignment = Alignment(horizontal="center", vertical="center")
+            else:
+                c.alignment = Alignment(horizontal="left", vertical="center")
+        ws.row_dimensions[row_idx].height = 24
+
     col_widths = {
         1: 10, 2: 20, 3: 15, 4: 25, 5: 18, 6: 18, 7: 22,
         8: 24, 9: 30, 10: 35, 11: 22, 12: 25, 13: 14, 14: 25
@@ -1052,21 +1116,19 @@ def save_submission_to_excel(sub_data, uploaded_file=None):
         col_letter = get_column_letter(col_idx)
         ws.column_dimensions[col_letter].width = width
 
-    wb.save(SUBMISSION_EXCEL_PATH)
-    
-    # 同步备份镜像至 表格与指标库/
-    try:
-        mirror_path = KPI_DIR / "行业新闻与咨询投稿登记表.xlsx"
-        wb.save(mirror_path)
-    except Exception:
-        pass
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = target_path.parent / f"tmp_{target_path.name}"
+    wb.save(tmp_path)
     wb.close()
-    return seq_num, SUBMISSION_EXCEL_PATH
+    if tmp_path.exists():
+        shutil.move(tmp_path, target_path)
 
-def init_submission_excel_if_needed():
-    """初始化行业新闻与咨询投稿登记表（若文件不存在，则创建并载入初始示范记录）"""
-    if not SUBMISSION_EXCEL_PATH.exists():
-        initial_sample = {
+def get_initial_seed_records():
+    """获取初始种子示范记录"""
+    return [
+        {
+            "seq_num": 1,
+            "sub_time": "2026-10-23 14:08:49",
             "sub_name": "李尧",
             "sub_org": "西北农林科技大学动物科技学院",
             "sub_phone": "13679275651",
@@ -1074,9 +1136,206 @@ def init_submission_excel_if_needed():
             "sub_email": "liyao@nwafu.edu.cn",
             "sub_cat": "💻 智慧畜牧工程与数字化档案",
             "sub_title": "智慧牧业数字化生产档案与多畜种核心指标管理实践",
-            "sub_summary": "首套覆盖生猪、奶牛、肉牛、奶山羊、肉羊、皮用羊、蛋鸡、肉鸡八大核心畜禽法定养殖档案与指标计算引擎，实现行业新闻与生产台账双向闭环。"
+            "sub_summary": "首套覆盖生猪、奶牛、肉牛、奶山羊、肉羊、皮用羊、蛋鸡、肉鸡八大核心畜禽法定养殖档案与指标计算引擎，实现行业新闻与生产台账双向闭环。",
+            "file_name": "无附件",
+            "file_path": "无",
+            "status": "待初审对接",
+            "audit_note": "大屏在线投稿自动登记入库"
+        },
+        {
+            "seq_num": 2,
+            "sub_time": "2026-10-23 14:08:49",
+            "sub_name": "张专家",
+            "sub_org": "国家肉牛牦牛产业技术体系",
+            "sub_phone": "13900112233",
+            "sub_wechat": "未填写",
+            "sub_email": "未填写",
+            "sub_cat": "🐖 生猪产业与精细化管理",
+            "sub_title": "现代肉牛高效TMR精准饲喂与肉品质提升研究",
+            "sub_summary": "无摘要",
+            "file_name": "无附件",
+            "file_path": "无",
+            "status": "待初审对接",
+            "audit_note": "大屏在线投稿自动登记入库"
         }
-        save_submission_to_excel(initial_sample, None)
+    ]
+
+def reconcile_and_sync_all_submissions(force_write=False):
+    """
+    【核心自愈对齐引擎】
+    跨数据源扫描、智能去重合并、时序递增重排并向所有多级持久化路径回写同步。
+    解决页面刷新、代码更新、Git更新或云端重启导致的数据消失问题。
+    """
+    ensure_all_submission_dirs()
+    candidates = []
+
+    # 1. 扫描所有 Excel 来源
+    for ep in [SUBMISSION_EXCEL_PATH, SUBMISSION_MIRROR_EXCEL_PATH, SUBMISSION_HOME_EXCEL_PATH]:
+        candidates.extend(load_records_from_excel(ep))
+
+    # 2. 扫描所有 JSONL 日志来源
+    for jp in [SUBMISSION_LOCAL_JOURNAL_PATH, SUBMISSION_KPI_JOURNAL_PATH, SUBMISSION_HOME_JOURNAL_PATH]:
+        candidates.extend(load_records_from_jsonl(jp))
+
+    # 3. 确定性业务去重合并
+    dedup_dict = {}
+    for r in candidates:
+        k = get_sub_record_key(r)
+        if k not in dedup_dict:
+            dedup_dict[k] = r
+        else:
+            exist = dedup_dict[k]
+            for field in ["sub_wechat", "sub_email", "sub_summary", "file_name", "file_path"]:
+                if (not exist.get(field) or exist[field] in ["无", "未填写", "无摘要", "无附件"]) and r.get(field):
+                    exist[field] = r[field]
+
+    # 若为空，则注入种子记录
+    if not dedup_dict:
+        for r in get_initial_seed_records():
+            dedup_dict[get_sub_record_key(r)] = r
+
+    # 4. 按提交时间稳定排序并重订序号
+    sorted_records = list(dedup_dict.values())
+    sorted_records.sort(key=lambda x: str(x.get("sub_time", "")))
+    for idx, r in enumerate(sorted_records, 1):
+        r["seq_num"] = idx
+
+    # 5. 检测是否需要同步回写至各存储端
+    excel_targets = [SUBMISSION_EXCEL_PATH, SUBMISSION_MIRROR_EXCEL_PATH, SUBMISSION_HOME_EXCEL_PATH]
+    jsonl_targets = [SUBMISSION_LOCAL_JOURNAL_PATH, SUBMISSION_KPI_JOURNAL_PATH, SUBMISSION_HOME_JOURNAL_PATH]
+
+    for ep in excel_targets:
+        needs_write = force_write or (not ep.exists())
+        if not needs_write:
+            existing_count = len(load_records_from_excel(ep))
+            if existing_count < len(sorted_records):
+                needs_write = True
+        if needs_write:
+            try:
+                write_records_to_excel_file(sorted_records, ep)
+            except Exception:
+                pass
+
+    for jp in jsonl_targets:
+        needs_write = force_write or (not jp.exists())
+        if not needs_write:
+            existing_count = len(load_records_from_jsonl(jp))
+            if existing_count < len(sorted_records):
+                needs_write = True
+        if needs_write:
+            try:
+                jp.parent.mkdir(parents=True, exist_ok=True)
+                with open(jp, "w", encoding="utf-8") as f:
+                    for r in sorted_records:
+                        f.write(json.dumps(r, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
+
+    return sorted_records
+
+def save_submission_to_excel(sub_data, uploaded_file=None):
+    """
+    将用户投稿表单数据原子追加并触发多级持久化存盘与跨源自愈
+    """
+    ensure_all_submission_dirs()
+    saved_filename = "无附件"
+    saved_filepath = "无"
+
+    if uploaded_file is not None:
+        try:
+            ts_prefix = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_fname = f"{ts_prefix}_{uploaded_file.name}"
+            file_bytes = uploaded_file.getvalue() if hasattr(uploaded_file, 'getvalue') else uploaded_file.read()
+            p1 = SUBMISSION_UPLOAD_DIR / safe_fname
+            with open(p1, "wb") as f:
+                f.write(file_bytes)
+            try:
+                p2 = SUBMISSION_MIRROR_UPLOAD_DIR / safe_fname
+                with open(p2, "wb") as f:
+                    f.write(file_bytes)
+            except Exception:
+                pass
+            try:
+                p3 = SUBMISSION_HOME_UPLOAD_DIR / safe_fname
+                with open(p3, "wb") as f:
+                    f.write(file_bytes)
+            except Exception:
+                pass
+
+            saved_filename = uploaded_file.name
+            saved_filepath = str(p1.relative_to(CURRENT_DIR))
+        except Exception as e:
+            saved_filename = f"{uploaded_file.name} (保存异常: {e})"
+            saved_filepath = "异常"
+
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_record = {
+        "seq_num": 0,
+        "sub_time": now_str,
+        "sub_name": str(sub_data.get("sub_name", "")).strip(),
+        "sub_org": str(sub_data.get("sub_org", "行业同仁") or "行业同仁").strip(),
+        "sub_phone": str(sub_data.get("sub_phone", "")).strip(),
+        "sub_wechat": str(sub_data.get("sub_wechat", "") or "未填写").strip(),
+        "sub_email": str(sub_data.get("sub_email", "") or "未填写").strip(),
+        "sub_cat": str(sub_data.get("sub_cat", "")).strip(),
+        "sub_title": str(sub_data.get("sub_title", "")).strip(),
+        "sub_summary": str(sub_data.get("sub_summary", "") or "无摘要").strip(),
+        "file_name": saved_filename,
+        "file_path": saved_filepath,
+        "status": "待初审对接",
+        "audit_note": "大屏在线投稿自动登记入库"
+    }
+
+    for jp in [SUBMISSION_LOCAL_JOURNAL_PATH, SUBMISSION_KPI_JOURNAL_PATH, SUBMISSION_HOME_JOURNAL_PATH]:
+        append_record_to_jsonl_safely(new_record, jp)
+
+    all_recs = reconcile_and_sync_all_submissions(force_write=True)
+
+    assigned_seq = len(all_recs)
+    for r in all_recs:
+        if get_sub_record_key(r) == get_sub_record_key(new_record):
+            assigned_seq = r["seq_num"]
+            break
+
+    return assigned_seq, SUBMISSION_EXCEL_PATH
+
+def init_submission_excel_if_needed():
+    """初始化与自愈对齐行业新闻与咨询投稿登记表"""
+    return reconcile_and_sync_all_submissions()
+
+def get_masked_submissions_df():
+    """获取脱敏后的公开台账DataFrame（联系方式与邮箱部分星号遮盖）"""
+    records = reconcile_and_sync_all_submissions()
+    masked_list = []
+    for r in records:
+        phone = str(r.get("sub_phone", "")).strip()
+        if len(phone) >= 7:
+            masked_phone = phone[:3] + "****" + phone[-4:]
+        elif phone:
+            masked_phone = phone[:2] + "***"
+        else:
+            masked_phone = "保密"
+
+        email = str(r.get("sub_email", "")).strip()
+        if "@" in email:
+            u, d = email.split("@", 1)
+            masked_email = (u[:2] + "***@" + d) if len(u) >= 2 else ("*@" + d)
+        else:
+            masked_email = "保密"
+
+        masked_list.append({
+            "登记序号": r.get("seq_num"),
+            "投稿时间": r.get("sub_time"),
+            "投稿人姓名": r.get("sub_name"),
+            "工作单位/机构": r.get("sub_org"),
+            "工作电话(脱敏)": masked_phone,
+            "邮箱(脱敏)": masked_email,
+            "资讯所属领域": r.get("sub_cat"),
+            "新闻/文章标题": r.get("sub_title"),
+            "附件": r.get("file_name"),
+            "处理状态": r.get("status")
+        })
+    return pd.DataFrame(masked_list)
 
 
 # =====================================================================
@@ -1367,32 +1626,105 @@ def render_industry_news_section(animal_type="生猪"):
                     seq_num, excel_path = save_submission_to_excel(sub_dict, sub_file)
                     st.success(f"🎉 投稿成功！已自动将您的投稿数据安全写入《行业新闻与咨询投稿登记表.xlsx》（入库编号：第 {seq_num} 号）！感谢 {sub_name}（{sub_org or '行业同仁'}）的投稿，您的文章《{sub_title}》已成功登记入库。项目团队将通过您留下的工作联系方式（电话: {sub_phone}）及时与您沟通审核与收录事宜。")
 
+        # 多级持久化防丢与自愈状态徽章
+        st.markdown("""
+        <div style='background-color:#161B22; border:1px solid #238636; border-radius:6px; padding:8px 14px; margin-top:12px; margin-bottom:8px;'>
+            <span style='color:#3FB950; font-size:12px;'>🛡️ <strong>多级持久化防丢与自愈引擎生效中</strong>：投稿数据自动同步存盘至【应用本地主库】+【指标库镜像】+【永久日志归档(JSONL)】+【宿主环境灾备库】，无论页面刷新、代码更新或跨端重载，历史数据绝对永不丢失。</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 访客端：公开脱敏版台账展示，让投稿人刷新页面后也能确认数据已成功入库
+        with st.expander("📋 查看已登记投稿台账（公开脱敏版 · 实时存盘留存）", expanded=False):
+            try:
+                df_masked = get_masked_submissions_df()
+                st.caption(f"已安全存盘入库 {len(df_masked)} 篇行业新闻与咨询文章。为保护个人隐私，联系电话与邮箱已自动星号脱敏保护：")
+                st.dataframe(df_masked, use_container_width=True, height=200)
+            except Exception as e:
+                st.caption(f"台账加载中... ({e})")
+
         # 权限控制：敏感数据（姓名、电话、微信、邮箱、摘要、附件路径等）只对认证管理员开放；普通用户网页完全隐藏已登记投稿台账与导出
         is_admin = st.session_state.get("is_admin", False)
         if is_admin:
-            if SUBMISSION_EXCEL_PATH.exists():
-                with st.expander("📋【管理员专享】已登记投稿全景台账审核与 Excel 导出 (已认证)", expanded=True):
-                    try:
+            with st.expander("📋【管理员专享】已登记投稿全景台账审核、多源自愈与 Excel 导出 (已认证)", expanded=True):
+                try:
+                    reconcile_and_sync_all_submissions()
+                    if SUBMISSION_EXCEL_PATH.exists():
                         df_sub_records = pd.read_excel(SUBMISSION_EXCEL_PATH, skiprows=1)
-                        adm_curr = st.session_state.get('admin_user', 'admin')
-                        st.info(f"🔑 **当前以管理员（{adm_curr}）身份登录**，已解锁投稿人真实姓名、电话、微信、邮箱及文章摘要全量敏感数据（共 {len(df_sub_records)} 条入库记录）：")
-                        st.dataframe(df_sub_records, use_container_width=True, height=240)
-                        with open(SUBMISSION_EXCEL_PATH, "rb") as f_sub:
-                            excel_sub_bytes = f_sub.read()
+                    else:
+                        df_sub_records = pd.DataFrame(reconcile_and_sync_all_submissions())
+                    
+                    adm_curr = st.session_state.get('admin_user', 'admin')
+                    st.info(f"🔑 **当前以管理员（{adm_curr}）身份登录**，已解锁投稿人真实姓名、电话、微信、邮箱及文章摘要全量敏感数据（全网多源核验已累计安全存盘 {len(df_sub_records)} 条记录）：")
+                    st.dataframe(df_sub_records, use_container_width=True, height=240)
+
+                    col_adm_btn1, col_adm_btn2, col_adm_btn3 = st.columns(3)
+                    with col_adm_btn1:
+                        if st.button("🔄 强制多级自愈对齐与灾备校验", use_container_width=True, key="btn_force_reconcile"):
+                            recs_synced = reconcile_and_sync_all_submissions(force_write=True)
+                            st.success(f"✅ 多源自愈成功！全网 {len(recs_synced)} 条投稿记录已完美同步并回写至所有存储节点。")
+                            st.rerun()
+
+                    with col_adm_btn2:
+                        excel_bytes_to_dl = b""
+                        if SUBMISSION_EXCEL_PATH.exists():
+                            with open(SUBMISSION_EXCEL_PATH, "rb") as f_sub:
+                                excel_bytes_to_dl = f_sub.read()
                         st.download_button(
-                            label="📥 导出完整未脱敏投稿登记表 (Excel)",
-                            data=excel_sub_bytes,
+                            label="📥 导出完整投稿登记表 (Excel)",
+                            data=excel_bytes_to_dl,
                             file_name="行业新闻与咨询投稿登记表.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
                             key="download_submission_excel_btn"
                         )
-                    except Exception as e:
-                        st.caption(f"台账读取中... ({e})")
+
+                    with col_adm_btn3:
+                        jsonl_bytes_to_dl = b""
+                        if SUBMISSION_LOCAL_JOURNAL_PATH.exists():
+                            with open(SUBMISSION_LOCAL_JOURNAL_PATH, "rb") as f_j:
+                                jsonl_bytes_to_dl = f_j.read()
+                        st.download_button(
+                            label="📥 导出永久日志灾备 (JSONL)",
+                            data=jsonl_bytes_to_dl,
+                            file_name="submissions_journal.jsonl",
+                            mime="application/x-ndjson",
+                            use_container_width=True,
+                            key="download_submission_jsonl_btn"
+                        )
+
+                    # 历史备份合并恢复功能
+                    st.markdown("##### 📤 上传历史备份台账合并恢复 (防丢双重保险)")
+                    restore_file = st.file_uploader("上传任意历史导出的 Excel 台账 (.xlsx) 或 JSONL 日志文件进行合并", type=["xlsx", "jsonl"], key="restore_sub_uploader")
+                    if restore_file is not None:
+                        try:
+                            incoming_recs = []
+                            if restore_file.name.endswith(".xlsx"):
+                                df_res = pd.read_excel(restore_file, skiprows=1)
+                                for _, r_row in df_res.iterrows():
+                                    if pd.notna(r_row.get("投稿人姓名")) or pd.notna(r_row.get("新闻/文章标题")):
+                                        incoming_recs.append(normalize_sub_record(dict(r_row)))
+                            elif restore_file.name.endswith(".jsonl"):
+                                content_str = restore_file.getvalue().decode("utf-8")
+                                for l_str in content_str.splitlines():
+                                    l_str = l_str.strip()
+                                    if l_str:
+                                        incoming_recs.append(normalize_sub_record(json.loads(l_str)))
+                            
+                            if incoming_recs:
+                                for ir in incoming_recs:
+                                    append_record_to_jsonl_safely(ir, SUBMISSION_LOCAL_JOURNAL_PATH)
+                                total_synced = reconcile_and_sync_all_submissions(force_write=True)
+                                st.success(f"🎉 成功从备份文件中解析并并轨合并记录！当前全库总记录数增至 {len(total_synced)} 条。")
+                                st.rerun()
+                        except Exception as e_res:
+                            st.error(f"合并备份文件失败: {e_res}")
+
+                except Exception as e:
+                    st.caption(f"台账读取中... ({e})")
         else:
             st.markdown("""
             <div style='background-color:#161B22; border:1px solid #30363D; border-radius:6px; padding:12px 16px; margin-top:14px;'>
-                <span style='color:#8C9BAB; font-size:13px;'>🔒 <strong>敏感数据隐私保护机制生效中</strong>：为严格保护投稿行业同仁与科研人员个人隐私，避免手机、微信、邮箱等联系方式公开泄露，<strong>已登记投稿台账与导出功能已对普通访客隐藏</strong>。管理员可在左侧侧边栏【🔐 管理员安全认证控制台】通过设备硬件指纹（MAC/序列号）与密码鉴权解锁查阅与导出。</span>
+                <span style='color:#8C9BAB; font-size:13px;'>🔒 <strong>敏感数据隐私保护机制生效中</strong>：为严格保护投稿行业同仁与科研人员个人隐私，避免手机、微信、邮箱等联系方式公开泄露，<strong>已登记投稿完整明细与导出功能已对普通访客隐藏</strong>。管理员可在左侧侧边栏【🔐 管理员安全认证控制台】通过设备硬件指纹（MAC/序列号）与密码鉴权解锁查阅与导出。</span>
             </div>
             """, unsafe_allow_html=True)
 

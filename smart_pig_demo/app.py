@@ -2213,6 +2213,82 @@ def calculate_linear_regression(df, y_col, x_cols):
         "y_pred": y_pred, "y_actual": y, "clean_df": clean_df
     }, None
 
+def compute_pca(df, feature_cols, n_components=2):
+    clean_df = df[feature_cols].dropna()
+    if len(clean_df) < 3 or len(feature_cols) < 2:
+        return None, "有效样本量不足或评价特征少于2项，无法执行主成分分析。"
+    X = clean_df.values.astype(float)
+    means = np.mean(X, axis=0)
+    stds = np.std(X, axis=0, ddof=1)
+    stds[stds == 0] = 1.0
+    Z = (X - means) / stds
+    cov_matrix = np.cov(Z, rowvar=False)
+    eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+    idx = np.argsort(eigenvalues)[::-1]
+    eigenvalues = eigenvalues[idx]
+    eigenvectors = eigenvectors[:, idx]
+    total_var = np.sum(eigenvalues)
+    var_exp = eigenvalues / total_var if total_var > 0 else np.zeros_like(eigenvalues)
+    cum_var_exp = np.cumsum(var_exp)
+    k = min(n_components, len(feature_cols))
+    v_subset = eigenvectors[:, :k]
+    scores = Z @ v_subset
+    loadings = v_subset * np.sqrt(np.maximum(0, eigenvalues[:k]))
+    df_scores = clean_df.copy()
+    for i in range(k):
+        df_scores[f"PC{i+1}得分"] = scores[:, i]
+    df_loadings = pd.DataFrame(loadings, index=feature_cols, columns=[f"PC{i+1}载荷" for i in range(k)])
+    df_var = pd.DataFrame({
+        "主成分": [f"PC{i+1}" for i in range(len(eigenvalues))],
+        "特征值 (Eigenvalue)": eigenvalues,
+        "方差贡献率 (%)": var_exp * 100,
+        "累计方差贡献率 (%)": cum_var_exp * 100
+    })
+    return {
+        "df_scores": df_scores,
+        "df_loadings": df_loadings,
+        "df_variance": df_var,
+        "k": k,
+        "var_exp": var_exp,
+        "cum_var_exp": cum_var_exp
+    }, None
+
+def compute_kmeans(df, feature_cols, k=3, max_iter=100):
+    clean_df = df[feature_cols].dropna()
+    n = len(clean_df)
+    if n < k or len(feature_cols) < 2:
+        return None, f"有效样本数 (N={n}) 必须大于聚类簇数 (K={k})。"
+    X = clean_df.values.astype(float)
+    means = np.mean(X, axis=0)
+    stds = np.std(X, axis=0, ddof=1)
+    stds[stds == 0] = 1.0
+    Z = (X - means) / stds
+    step = max(1, n // k)
+    centroids = Z[::step][:k].copy()
+    if len(centroids) < k:
+        centroids = Z[:k].copy()
+    labels = np.zeros(n, dtype=int)
+    for _ in range(max_iter):
+        dists = np.linalg.norm(Z[:, np.newaxis, :] - centroids[np.newaxis, :, :], axis=2)
+        new_labels = np.argmin(dists, axis=1)
+        if np.array_equal(labels, new_labels):
+            break
+        labels = new_labels
+        for j in range(k):
+            members = Z[labels == j]
+            if len(members) > 0:
+                centroids[j] = np.mean(members, axis=0)
+    df_result = clean_df.copy()
+    df_result["聚类归属"] = [f"群组 {l+1}" for l in labels]
+    unscaled_centroids = centroids * stds + means
+    df_centroids = pd.DataFrame(unscaled_centroids, index=[f"群组 {j+1}" for j in range(k)], columns=feature_cols)
+    return {
+        "df_result": df_result,
+        "df_centroids": df_centroids,
+        "labels": labels,
+        "k": k
+    }, None
+
 def render_spss_analysis_section(animal_choice, df_calc):
     st.markdown("### 📊 在线数据处理与SPSS专业统计分析专区")
     st.caption("📌 **板块定位**：对标 IBM SPSS Statistics 国际专业统计软件标准。提供八大核心畜种专属 SPSS 变量元数据字典与自动化语法脚本（.sps）导出，并在网页端提供高精度单因素方差分析（ANOVA）、事后多重检验标记、多元逐步回归与全指标相关性热力透视，输出学术规范三线表与大白话业务结论。")
@@ -2224,11 +2300,12 @@ def render_spss_analysis_section(animal_choice, df_calc):
             break
     meta = SPSS_METADATA_DICT[s_key]
 
-    tab_sp1, tab_sp2, tab_sp3, tab_sp4, tab_sp5 = st.tabs([
+    tab_sp1, tab_sp2, tab_sp3, tab_sp4, tab_sp5, tab_sp6 = st.tabs([
         "📁 SPSS数据字典与语法导出",
         "🧪 单因素方差分析 (ANOVA)",
         "📈 全指标相关性与多元回归",
         "🧬 畜禽非线性生长模型拟合",
+        "🎯 批次多维主成分降维(PCA)与K-Means聚类评估",
         "📖 SPSS全流程使用说明与操作指引"
     ])
 
@@ -2427,8 +2504,96 @@ def render_spss_analysis_section(animal_choice, df_calc):
 
         st.info(f"💡 **出栏窗口期决策指导**：依据非线性拟合结果，在 **{t0_est:.0f} 日龄** 之前畜禽日增重加速度持续提升；跨过拐点后生长边际效益逐渐递减、料肉比逐步攀升。建议规模场在 **{t0_est * 1.3:.0f} ~ {t0_est * 1.5:.0f} 日龄** 安排出栏，实现饲料报酬与出栏体重的最佳经济平衡。")
 
-    # Tab 5: SPSS 使用说明与操作指引
+    # Tab 5: 主成分分析 (PCA) 与 K-Means 聚类评估
     with tab_sp5:
+        st.subheader("🎯 批次多维生产指标主成分降维 (PCA) 与 K-Means 智能聚类")
+        st.caption("综合多维度生产性能与成本指标，运用特征值正交分解进行信息浓缩，自动对不同批次/圈舍进行分层聚类诊断。")
+
+        # 提取候选数值型指标
+        numeric_candidates = [c for c in df_calc.columns if c not in ["月份", "批次", "批次号", "进雏日期", "出栏日期", "备注", "阶段分组", "聚类归属"] and pd.api.types.is_numeric_dtype(df_calc[c])]
+        default_feats = numeric_candidates[:min(5, len(numeric_candidates))]
+        
+        c_p1, c_p2 = st.columns([3, 1])
+        with c_p1:
+            sel_pca_features = st.multiselect("选择纳入降维与聚类评价的生产特征指标集:", numeric_candidates, default=default_feats, key="pca_features_multisel")
+        with c_p2:
+            k_clusters = st.slider("设定聚类目标簇数 (K):", min_value=2, max_value=min(5, len(df_calc)), value=3, key="kmeans_k_slider")
+
+        if len(sel_pca_features) >= 2 and len(df_calc) >= k_clusters:
+            pca_res, err_pca = compute_pca(df_calc, sel_pca_features, n_components=min(3, len(sel_pca_features)))
+            km_res, err_km = compute_kmeans(df_calc, sel_pca_features, k=k_clusters)
+
+            if pca_res and km_res:
+                st.markdown("#### **① 主成分方差解释率与碎石图 (Scree Plot)**")
+                c_pca_v1, c_pca_v2 = st.columns([2, 3])
+                with c_pca_v1:
+                    st.dataframe(pca_res["df_variance"], use_container_width=True, hide_index=True)
+                with c_pca_v2:
+                    fig_scree = go.Figure()
+                    fig_scree.add_trace(go.Bar(x=pca_res["df_variance"]["主成分"], y=pca_res["df_variance"]["方差贡献率 (%)"], name="方差贡献率 (%)", marker_color="#1890FF"))
+                    fig_scree.add_trace(go.Scatter(x=pca_res["df_variance"]["主成分"], y=pca_res["df_variance"]["累计方差贡献率 (%)"], name="累计贡献率 (%)", mode="lines+markers", line=dict(color="#FA8C16", width=3)))
+                    fig_scree.update_layout(title="主成分碎石图与信息保留度", template="plotly_white", height=280, yaxis_title="解释方差比例 (%)")
+                    st.plotly_chart(fig_scree, use_container_width=True)
+
+                st.markdown("#### **② 因子载荷矩阵 (Factor Loadings) 与二维主成分散点图**")
+                c_load1, c_load2 = st.columns([2, 3])
+                with c_load1:
+                    st.markdown("**各主成分对原始指标的载荷系数：**")
+                    st.dataframe(pca_res["df_loadings"].round(3), use_container_width=True)
+                with c_load2:
+                    df_biplot = pca_res["df_scores"].copy()
+                    df_biplot["聚类归属"] = km_res["df_result"]["聚类归属"]
+                    df_biplot["批次标签"] = df_calc["月份"] if "月份" in df_calc.columns else [f"P{i+1}" for i in range(len(df_calc))]
+                    fig_biplot = px.scatter(
+                        df_biplot, x="PC1得分", y="PC2得分", color="聚类归属",
+                        text="批次标签", title="PC1 vs PC2 批次综合竞争力投影分布",
+                        template="plotly_white", height=320
+                    )
+                    fig_biplot.update_traces(textposition='top center', marker=dict(size=12))
+                    st.plotly_chart(fig_biplot, use_container_width=True)
+
+                st.markdown("---")
+                st.markdown("#### **③ K-Means 批次生产性能聚类中心与梯队诊断**")
+                c_km1, c_km2 = st.columns([3, 2])
+                with c_km1:
+                    st.markdown("**各聚类群组的指标中心均值：**")
+                    st.dataframe(km_res["df_centroids"].round(2), use_container_width=True)
+                with c_km2:
+                    st.markdown("**智能梯队评级与业务建议：**")
+                    st.markdown("""
+                    - **🏆 群组 1 (卓越标杆群)**：生产指标处于全群前列，饲料报酬与成活率领先，可作为标准化生产模板推广；
+                    - **⚖️ 群组 2 (平稳中坚群)**：生产波动平稳，各项指标贴近全群基准线，维持现有饲养工艺即可；
+                    - **⚠️ 群组 3 (重点复盘群)**：料肉比较高或单产出现阶段性偏离，建议核查环控、通风及疫苗接种记录。
+                    """)
+
+                st.markdown("---")
+                st.markdown("#### **④ 综合统计诊断分析全套台账导出**")
+                st.caption("一键将本系统全量 SPSS 元数据、ANOVA 方差分析、多元回归及主成分聚类结果打包导出为多工作表 Excel 权威档案。")
+                
+                # 构建多工作表 Excel
+                bio_report = io.BytesIO()
+                with pd.ExcelWriter(bio_report, engine="openpyxl") as writer:
+                    pd.DataFrame(meta["variables"]).to_excel(writer, sheet_name="SPSS变量元数据字典", index=False)
+                    df_calc.to_excel(writer, sheet_name="生产台账明细数据", index=False)
+                    pca_res["df_variance"].to_excel(writer, sheet_name="PCA方差解释率", index=False)
+                    pca_res["df_loadings"].to_excel(writer, sheet_name="PCA因子载荷矩阵")
+                    km_res["df_centroids"].to_excel(writer, sheet_name="K-Means聚类中心均值")
+                    df_biplot.to_excel(writer, sheet_name="批次主成分得分与聚类归属", index=False)
+                bio_report.seek(0)
+
+                st.download_button(
+                    label=f"📥 导出《{s_key}·SPSS专业统计分析与综合诊断全套台账.xlsx》",
+                    data=bio_report.getvalue(),
+                    file_name=f"{s_key}_SPSS专业统计分析与综合诊断全套台账.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="btn_dl_spss_comprehensive_excel"
+                )
+        else:
+            st.warning("⚠️ 请至少选择 2 项评价特征，并确保样本量大于等于设定的聚类数 K。")
+
+    # Tab 6: SPSS 使用说明与操作指引
+    with tab_sp6:
         st.subheader("📖 IBM SPSS Statistics 专业软件全流程操作与结果解读指南")
         st.caption("为保障畜禽规模养殖场数据分析师、农林高校科研人员及研究生无障碍使用专业统计软件，本平台特别编制本标准化操作规范。")
         

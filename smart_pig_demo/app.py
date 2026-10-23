@@ -3,6 +3,18 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-22 第12次改动）：
+  0. 增设多重管理员权限认证与敏感数据隐私防护机制：
+     - 双因子鉴权认证：查询验证登录设备的 MAC 地址、macOS 硬件序列号白名单与管理员账号密码
+     - 敏感数据严格隔离：投稿人姓名、联系方式（电话/微信/邮箱）、文章摘要与附件路径只对认证管理员开放
+     - 普通用户端安全防护：网页端对普通访客完全隐藏已登记投稿台账与 Excel 导出功能，显示隐私保护提示
+     - 侧边栏专属【🔐 管理员安全认证控制台】：支持设备指纹即时检测、登录鉴权、已认证状态保持与安全退出
+升级亮点（2026-10-22 第11次改动）：
+  0. 增设「🎓 现代畜牧产业人才培养与全国高校动物科技学院科研咨询矩阵」专属板块：
+     - 收录全国 24 所顶级与重点农林高校动物科技学院权威科研与人才培养资讯
+     - 支持网页内直接多维检索查询：关键词模糊检索、地理大区过滤、办学层次（985/211/双一流/省属骨干）及聚焦畜种筛选
+     - 各院所提供官方网站直达跳转按钮（一键直通学院官方主页）
+     - 集成全景数据表展开预览与《全国农林高校动物科技学院名录与科研咨询指南.xlsx》一键导出下载
 升级亮点（2026-10-22 第10次改动）：
   0. 行业新闻资讯与投稿互动中心全面实现自动持久化存盘与台账闭环：
      - 用户在前端提交投稿表单后，数据自动安全追加写入《行业新闻与咨询投稿登记表.xlsx》
@@ -1052,6 +1064,100 @@ def init_submission_excel_if_needed():
         }
         save_submission_to_excel(initial_sample, None)
 
+
+# =====================================================================
+# 三点六、管理员权限认证与设备硬件（MAC/序列号）安全鉴权引擎
+# =====================================================================
+def get_device_hardware_fingerprint():
+    """获取当前服务器/登录设备的物理 MAC 地址与硬件序列号"""
+    import uuid, subprocess, platform
+    mac_addr = "未知MAC"
+    try:
+        out = subprocess.check_output(['ifconfig', 'en0'], stderr=subprocess.DEVNULL, timeout=2).decode()
+        for line in out.splitlines():
+            if 'ether' in line:
+                mac_addr = line.strip().split()[1].lower()
+                break
+    except Exception:
+        pass
+    if mac_addr == "未知MAC":
+        try:
+            mac_num = uuid.getnode()
+            mac_addr = ':'.join(['{:02x}'.format((mac_num >> el) & 0xff) for el in range(0, 12, 2)][::-1]).lower()
+        except Exception:
+            mac_addr = "00:00:00:00:00:00"
+
+    serial_num = "未知序列号"
+    try:
+        out_serial = subprocess.check_output(['ioreg', '-l'], stderr=subprocess.DEVNULL, timeout=2).decode()
+        for line in out_serial.splitlines():
+            if 'IOPlatformSerialNumber' in line:
+                serial_num = line.strip().split('=')[-1].strip().replace('"', '')
+                break
+    except Exception:
+        pass
+    if serial_num == "未知序列号":
+        serial_num = platform.node() or "DEV-LOCAL"
+
+    return mac_addr, serial_num
+
+AUTHORIZED_MACS = ["ca:e9:b1:3d:ce:69", "44:13:4f:3c:f1:c5"]
+AUTHORIZED_SERIALS = ["GP71L4XYJX", "MACBOOK-AIR"]
+ADMIN_CREDENTIALS = {
+    "admin": "admin888",
+    "liyao": "nwafu2024"
+}
+
+def verify_admin_login(username, password, manual_serial=""):
+    """核验管理员登录：比对账号密码，并核验设备 MAC 地址或硬件序列号白名单"""
+    if username not in ADMIN_CREDENTIALS or ADMIN_CREDENTIALS[username] != password:
+        return False, "❌ 管理员账号或密码错误，请重新核对输入！"
+    
+    curr_mac, curr_serial = get_device_hardware_fingerprint()
+    mac_matched = curr_mac.lower() in [m.lower() for m in AUTHORIZED_MACS]
+    serial_check = (manual_serial.strip().upper() if manual_serial else curr_serial.upper())
+    serial_matched = any(s.upper() in serial_check for s in AUTHORIZED_SERIALS)
+    
+    if mac_matched or serial_matched:
+        return True, f"✅ 设备硬件指纹与身份认证成功！(设备MAC: {curr_mac} / 序列号: {curr_serial})"
+    else:
+        return False, f"⚠️ 设备硬件未授权！检测到当前设备 MAC: {curr_mac}，序列号: {curr_serial} 不在管理员预设授权白名单中。"
+
+def render_admin_sidebar_auth():
+    """在侧边栏渲染管理员鉴权控制台"""
+    st.markdown("---")
+    st.subheader("🔐 管理员安全认证控制台")
+    
+    is_admin = st.session_state.get("is_admin", False)
+    curr_mac, curr_serial = get_device_hardware_fingerprint()
+    
+    if is_admin:
+        adm_name = st.session_state.get('admin_user', 'admin')
+        st.success(f"🟢 **管理员已认证在线**\n\n- 账号: `{adm_name}`\n- 设备MAC: `{curr_mac}`\n- 序列号: `{curr_serial}`")
+        st.caption("🔒 已解锁行业投稿台账全景审核、真实姓名联系方式查阅与 Excel 完整导出权限。")
+        if st.button("🚪 退出管理员登录", use_container_width=True, key="admin_logout_btn"):
+            st.session_state["is_admin"] = False
+            st.session_state["admin_user"] = ""
+            st.rerun()
+    else:
+        with st.expander("🔑 管理员权限登录 (硬件指纹+账号密码)", expanded=False):
+            st.caption(f"💻 **当前登录设备识别**：\n- 物理MAC: `{curr_mac}`\n- 硬件序列号: `{curr_serial}`")
+            adm_user = st.text_input("管理员账号", placeholder="admin / liyao", key="sidebar_adm_user")
+            adm_pwd = st.text_input("管理员密码", type="password", placeholder="请输入管理密码", key="sidebar_adm_pwd")
+            manual_serial = st.text_input("授权设备序列号", value=curr_serial, help="系统默认自动获取本机序列号进行白名单比对", key="sidebar_manual_serial")
+            
+            if st.button("🚀 验证硬件与账号登录", use_container_width=True, key="admin_login_btn"):
+                ok, msg = verify_admin_login(adm_user.strip(), adm_pwd.strip(), manual_serial.strip())
+                if ok:
+                    st.session_state["is_admin"] = True
+                    st.session_state["admin_user"] = adm_user.strip()
+                    st.session_state["admin_mac"] = curr_mac
+                    st.session_state["admin_serial"] = curr_serial
+                    st.toast("🎉 管理员认证成功！已解锁投稿人敏感数据与台账导出权限。")
+                    st.rerun()
+                else:
+                    st.error(msg)
+
 # =====================================================================
 # 四、现代畜牧行业新闻资讯与投稿互动中心（支持刷新动态与全畜种咨询）
 # =====================================================================
@@ -1182,24 +1288,34 @@ def render_industry_news_section(animal_type="生猪"):
                     seq_num, excel_path = save_submission_to_excel(sub_dict, sub_file)
                     st.success(f"🎉 投稿成功！已自动将您的投稿数据安全写入《行业新闻与咨询投稿登记表.xlsx》（入库编号：第 {seq_num} 号）！感谢 {sub_name}（{sub_org or '行业同仁'}）的投稿，您的文章《{sub_title}》已成功登记入库。项目团队将通过您留下的工作联系方式（电话: {sub_phone}）及时与您沟通审核与收录事宜。")
 
-        # 实时投稿登记台账在线查看与导出
-        if SUBMISSION_EXCEL_PATH.exists():
-            with st.expander("📋 查看已登记投稿台账与导出 (实时自动更新)", expanded=False):
-                try:
-                    df_sub_records = pd.read_excel(SUBMISSION_EXCEL_PATH, skiprows=1)
-                    st.dataframe(df_sub_records, use_container_width=True, height=220)
-                    with open(SUBMISSION_EXCEL_PATH, "rb") as f_sub:
-                        excel_sub_bytes = f_sub.read()
-                    st.download_button(
-                        label="📥 导出完整投稿登记表 (Excel)",
-                        data=excel_sub_bytes,
-                        file_name="行业新闻与咨询投稿登记表.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        key="download_submission_excel_btn"
-                    )
-                except Exception as e:
-                    st.caption(f"台账读取中... ({e})")
+        # 权限控制：敏感数据（姓名、电话、微信、邮箱、摘要、附件路径等）只对认证管理员开放；普通用户网页完全隐藏已登记投稿台账与导出
+        is_admin = st.session_state.get("is_admin", False)
+        if is_admin:
+            if SUBMISSION_EXCEL_PATH.exists():
+                with st.expander("📋【管理员专享】已登记投稿全景台账审核与 Excel 导出 (已认证)", expanded=True):
+                    try:
+                        df_sub_records = pd.read_excel(SUBMISSION_EXCEL_PATH, skiprows=1)
+                        adm_curr = st.session_state.get('admin_user', 'admin')
+                        st.info(f"🔑 **当前以管理员（{adm_curr}）身份登录**，已解锁投稿人真实姓名、电话、微信、邮箱及文章摘要全量敏感数据（共 {len(df_sub_records)} 条入库记录）：")
+                        st.dataframe(df_sub_records, use_container_width=True, height=240)
+                        with open(SUBMISSION_EXCEL_PATH, "rb") as f_sub:
+                            excel_sub_bytes = f_sub.read()
+                        st.download_button(
+                            label="📥 导出完整未脱敏投稿登记表 (Excel)",
+                            data=excel_sub_bytes,
+                            file_name="行业新闻与咨询投稿登记表.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="download_submission_excel_btn"
+                        )
+                    except Exception as e:
+                        st.caption(f"台账读取中... ({e})")
+        else:
+            st.markdown("""
+            <div style='background-color:#161B22; border:1px solid #30363D; border-radius:6px; padding:12px 16px; margin-top:14px;'>
+                <span style='color:#8C9BAB; font-size:13px;'>🔒 <strong>敏感数据隐私保护机制生效中</strong>：为严格保护投稿行业同仁与科研人员个人隐私，避免手机、微信、邮箱等联系方式公开泄露，<strong>已登记投稿台账与导出功能已对普通访客隐藏</strong>。管理员可在左侧侧边栏【🔐 管理员安全认证控制台】通过设备硬件指纹（MAC/序列号）与密码鉴权解锁查阅与导出。</span>
+            </div>
+            """, unsafe_allow_html=True)
 
 # =====================================================================
 # 五、权威学术论文与科研文献中心（链接对应畜禽数据库与全畜种DOI精选）
@@ -1385,6 +1501,277 @@ def render_research_papers_section(animal_type="生猪"):
             }
         ]
         for p in broiler_papers: render_paper_card(p)
+
+
+# =====================================================================
+# 五点五、现代畜牧产业人才培养与全国高校动物科技学院科研咨询矩阵
+# =====================================================================
+def render_education_section():
+    st.markdown("### 🎓 现代畜牧产业人才培养与全国高校动物科技学院科研咨询矩阵")
+    st.caption("📌 **板块定位**：聚合全国顶尖与重点农林高校动物科学技术学院/动物科技学院权威科研与人才培养资讯，推动产学研用深度协同。支持在网页内按高校名称、所属地域、办学层次或优势特色学科方向直接检索查询，并提供各学院官方门户一键直达跳转。")
+    
+    colleges_data = [
+        {
+            '序号': 1, '高校名称': '西北农林科技大学', '学院名称': '动物科技学院', '地理大区': '西北地区', '所在省市': '陕西杨凌',
+            '办学层次': '一流大学建设高校 (985/211)', '特色聚焦畜种': '羊业 (奶山羊/肉羊) · 肉牛 · 生猪',
+            '优势特色学科': '反刍动物遗传育种、奶山羊良种繁育、肉牛育肥与胴体品质、动物营养与饲喂调控、智慧牧业科学与工程',
+            '人才培养与咨询重点': '国家级重点学科，首批开设智慧牧业工程本硕博贯通培养，李尧开发者母校，产学研深度融合基地',
+            '官方网站': 'https://dkxy.nwafu.edu.cn/'
+        },
+        {
+            '序号': 2, '高校名称': '中国农业大学', '学院名称': '动物科学技术学院', '地理大区': '华北地区', '所在省市': '北京海淀',
+            '办学层次': '一流大学建设高校 (985/211)', '特色聚焦畜种': '生猪 · 蛋鸡/肉鸡 · 奶牛 · 肉牛',
+            '优势特色学科': '动物遗传育种与繁殖全国重点实验室、畜禽精准饲料营养与低碳减排、伴侣动物科学、现代智慧畜牧',
+            '人才培养与咨询重点': '畜禽种业创新策源地，动物科学A+顶尖学科，培养现代畜牧领军科学家与企业家',
+            '官方网站': 'http://cast.cau.edu.cn/'
+        },
+        {
+            '序号': 3, '高校名称': '华中农业大学', '学院名称': '动物科学技术学院·动物医学院', '地理大区': '华中地区', '所在省市': '湖北武汉',
+            '办学层次': '一流学科建设高校 (211/双一流)', '特色聚焦畜种': '生猪 (Swine) · 肉牛 · 蛋鸡',
+            '优势特色学科': '生猪抗病与优质基因选育、母猪批次化精准生产、生猪健康养殖协同创新中心、动物传染病防控',
+            '人才培养与咨询重点': '全国著名生猪与动物医学拔尖人才基地，动科动医结合，校企深度合作标杆',
+            '官方网站': 'http://myxy.hzau.edu.cn/'
+        },
+        {
+            '序号': 4, '高校名称': '南京农业大学', '学院名称': '动物科技学院', '地理大区': '华东地区', '所在省市': '江苏南京',
+            '办学层次': '一流学科建设高校 (211/双一流)', '特色聚焦畜种': '奶牛 · 羊业 (湖羊) · 生猪',
+            '优势特色学科': '家畜生殖生理与胚胎工程、草食动物瘤胃消化调控、绿色发酵饲料资源开发、优质原料奶生产技术',
+            '人才培养与咨询重点': '农业农村部草食家畜健康养殖重点实验室，培养草食家畜与生猪产业高端研发人才',
+            '官方网站': 'https://dkxy.njau.edu.cn/'
+        },
+        {
+            '序号': 5, '高校名称': '浙江大学', '学院名称': '动物科学学院', '地理大区': '华东地区', '所在省市': '浙江杭州',
+            '办学层次': '一流大学建设高校 (985/211)', '特色聚焦畜种': '生猪 · 家禽 · 特种经济动物',
+            '优势特色学科': '分子动物营养学教育部重点实验室、动物智能装备与感知物联、饲料生物工程与微生态制剂',
+            '人才培养与咨询重点': '综合性顶尖大学交叉学科优势，数字畜牧与基因编辑拔尖领军人才培育基地',
+            '官方网站': 'http://cas.zju.edu.cn/'
+        },
+        {
+            '序号': 6, '高校名称': '华南农业大学', '学院名称': '动物科学学院', '地理大区': '华南地区', '所在省市': '广东广州',
+            '办学层次': '一流学科建设高校 (双一流)', '特色聚焦畜种': '蛋鸡/肉鸡 (Poultry) · 生猪',
+            '优势特色学科': '热带亚热带家禽育种、肉鸡高效笼养与饲料转化、温氏产业学院产教融合模式、畜禽生态养殖',
+            '人才培养与咨询重点': '与千亿温氏集团紧密合作，黄羽肉鸡与白羽肉鸡产业链卓越工程师培养摇篮',
+            '官方网站': 'https://dongke.scau.edu.cn/'
+        },
+        {
+            '序号': 7, '高校名称': '四川农业大学', '学院名称': '动物科技学院', '地理大区': '西南地区', '所在省市': '四川雅安/成都',
+            '办学层次': '一流学科建设高校 (211/双一流)', '特色聚焦畜种': '生猪 (Swine) · 家禽 · 肉牛/肉羊',
+            '优势特色学科': '猪禽遗传资源发掘与保护、动物遗传育种国家级教学团队、地方特色猪种选育、饲料抗应激调控',
+            '人才培养与咨询重点': '西南生猪育种核心智库，培养具有深厚理论与产业实战经验的现代动科拔尖人才',
+            '官方网站': 'https://dky.sicau.edu.cn/'
+        },
+        {
+            '序号': 8, '高校名称': '东北农业大学', '学院名称': '动物科学技术学院', '地理大区': '东北地区', '所在省市': '黑龙江哈尔滨',
+            '办学层次': '一流学科建设高校 (211/双一流)', '特色聚焦畜种': '奶牛 (Dairy Cattle) · 肉牛 · 生猪',
+            '优势特色学科': '北方高寒区奶牛集约化饲养营养调控、黑龙江规模化奶仓技术支撑、奶牛繁殖障碍防控与粗饲料青贮',
+            '人才培养与咨询重点': '中国高寒区奶牛与寒地畜牧关键技术人才培养重镇，支撑飞鹤、完达山等产业高地',
+            '官方网站': 'http://dkxy.neau.edu.cn/'
+        },
+        {
+            '序号': 9, '高校名称': '山东农业大学', '学院名称': '动物科技学院', '地理大区': '华东地区', '所在省市': '山东泰安',
+            '办学层次': '省属重点骨干大学', '特色聚焦畜种': '蛋鸡/肉鸡 · 肉牛 · 生猪',
+            '优势特色学科': '优质肉鸡蛋鸡健康养殖、家禽环境控制与肠道健康、山东鲁西黄牛选育复壮、地方猪种提纯',
+            '人才培养与咨询重点': '紧密依托山东畜牧第一大省产业生态，为家禽与牛羊规模场输送大量一线管理骨干',
+            '官方网站': 'http://dkxy.sdau.edu.cn/'
+        },
+        {
+            '序号': 10, '高校名称': '河南农业大学', '学院名称': '动物科技学院', '地理大区': '华中地区', '所在省市': '河南郑州',
+            '办学层次': '省部共建重点高校', '特色聚焦畜种': '生猪 · 蛋鸡/肉鸡 · 肉牛',
+            '优势特色学科': '中原集约化生猪高效繁育、饲料酶制剂与发酵饲料工艺、牧业经济与现代养殖装备集成',
+            '人才培养与咨询重点': '紧贴中原肉蛋奶消费腹地，生猪产业化工程创新人才与经营管理人才基地',
+            '官方网站': 'https://dkxy.henau.edu.cn/'
+        },
+        {
+            '序号': 11, '高校名称': '吉林大学', '学院名称': '植物科学与动物科学学院', '地理大区': '东北地区', '所在省市': '吉林长春',
+            '办学层次': '一流大学建设高校 (985/211)', '特色聚焦畜种': '肉牛 (Beef Cattle) · 优质奶牛',
+            '优势特色学科': '东北优质肉牛繁育体细胞克隆育种、黑土地种养循环农业体系、转基因动物与分子育种',
+            '人才培养与咨询重点': '高层次学术型科研人才培养，肉牛杂交优势测定与高品质雪花牛肉开发创新团队',
+            '官方网站': 'https://dwkx.jlu.edu.cn/'
+        },
+        {
+            '序号': 12, '高校名称': '内蒙古农业大学', '学院名称': '动物科学学院', '地理大区': '华北地区', '所在省市': '内蒙古呼和浩特',
+            '办学层次': '自治区重点优势特色高校', '特色聚焦畜种': '羊业 (肉羊/绒山羊) · 肉牛 · 双峰驼',
+            '优势特色学科': '内蒙古细毛羊与肉脂羊遗传繁育、绒山羊产绒性状分子机理、双峰驼乳肉特色资源综合开发',
+            '人才培养与咨询重点': '草原畜牧业拔尖创新人才摇篮，北方草畜平衡与生态健康养殖技术服务基地',
+            '官方网站': 'https://dkxy.imau.edu.cn/'
+        },
+        {
+            '序号': 13, '高校名称': '新疆农业大学', '学院名称': '动物科学学院', '地理大区': '西北地区', '所在省市': '新疆乌鲁木齐',
+            '办学层次': '自治区特色高水平大学', '特色聚焦畜种': '肉牛 (新疆褐牛) · 羊业 (细毛羊/多羔羊)',
+            '优势特色学科': '新疆褐牛乳肉兼用选育、多胎肉羊舍饲繁育、干旱荒漠绿洲草畜协同调控与秸秆饲料化',
+            '人才培养与咨询重点': '服务一带一路与西部现代畜牧业，培养扎根边疆的肉牛肉羊现代规模化养殖专家',
+            '官方网站': 'https://dkxy.xjau.edu.cn/'
+        },
+        {
+            '序号': 14, '高校名称': '云南农业大学', '学院名称': '动物科学技术学院', '地理大区': '西南地区', '所在省市': '云南昆明',
+            '办学层次': '省属重点优势大学', '特色聚焦畜种': '生猪 (地方特色猪) · 肉牛 · 特色肉羊',
+            '优势特色学科': '滇南小耳猪与撒坝猪地方种质资源保护与利用、高原山地肉牛生态养殖与草料供给',
+            '人才培养与咨询重点': '热带亚热带地方猪种与山地特色畜牧业科研团队，生态特色畜牧业人才孵化器',
+            '官方网站': 'https://dongke.ynau.edu.cn/'
+        },
+        {
+            '序号': 15, '高校名称': '江西农业大学', '学院名称': '动物科学技术学院', '地理大区': '华东地区', '所在省市': '江西南昌',
+            '办学层次': '省部共建重点大学', '特色聚焦畜种': '生猪 (Swine) · 家禽',
+            '优势特色学科': '猪遗传改良与养殖技术国家重点实验室、地方猪种肉质基因图谱构建、生猪全基因组选择核心技术',
+            '人才培养与咨询重点': '黄路生院士团队领衔，全国生猪遗传改良高层次科研人才与行业精英培育摇篮',
+            '官方网站': 'http://dongke.jxau.edu.cn/'
+        },
+        {
+            '序号': 16, '高校名称': '安徽农业大学', '学院名称': '动物科技学院', '地理大区': '华东地区', '所在省市': '安徽合肥',
+            '办学层次': '省属重点骨干大学', '特色聚焦畜种': '生猪 · 蛋鸡/肉鸡 · 地方水禽',
+            '优势特色学科': '皖南花猪与定远黑猪良种保护、家禽羽色遗传与羽绒性能提升、饲料无抗生物替代技术',
+            '人才培养与咨询重点': '长三角一体化现代畜牧产学研合作示范基地，应用型畜牧技术推广与管理人才摇篮',
+            '官方网站': 'http://dkxy.ahau.edu.cn/'
+        },
+        {
+            '序号': 17, '高校名称': '湖南农业大学', '学院名称': '动物科学技术学院', '地理大区': '华中地区', '所在省市': '湖南长沙',
+            '办学层次': '国内一流大学建设高校', '特色聚焦畜种': '生猪 (宁乡猪) · 羊业 (黑山羊) · 家禽',
+            '优势特色学科': '宁乡花猪保种与肉品质机理研究、湖南黑山羊选育繁殖、植物源中草药健康饲料添加剂',
+            '人才培养与咨询重点': '印遇龙院士科研学术支撑，动物生化营养与环境友好型养殖技术拔尖人才高地',
+            '官方网站': 'https://dkxy.hunau.edu.cn/'
+        },
+        {
+            '序号': 18, '高校名称': '河北农业大学', '学院名称': '动物科技学院', '地理大区': '华北地区', '所在省市': '河北保定',
+            '办学层次': '省部共建重点大学', '特色聚焦畜种': '蛋鸡/肉鸡 · 肉牛 · 奶牛',
+            '优势特色学科': '太行山特色蛋鸡绿色养殖、华北优质肉牛育肥与架子牛采购规范、农作物秸秆反刍利用',
+            '人才培养与咨询重点': '太行山道路产学研典范，现代家禽与反刍草食家畜规模养殖工程化应用人才基地',
+            '官方网站': 'http://dongke.hebau.edu.cn/'
+        },
+        {
+            '序号': 19, '高校名称': '扬州大学', '学院名称': '动物科学与技术学院', '地理大区': '华东地区', '所在省市': '江苏扬州',
+            '办学层次': '省属重点综合大学', '特色聚焦畜种': '家禽 (水禽鹅鸭) · 羊业 (湖羊) · 生猪',
+            '优势特色学科': '国家水禽种质资源基因库、高邮鸭扬州鹅选育、太湖猪保种与太湖水系湖羊多胎繁育',
+            '人才培养与咨询重点': '全国水禽科学最高水平科研与人才集聚地之一，培养高水平特种经济家禽养殖骨干',
+            '官方网站': 'https://dkxy.yzu.edu.cn/'
+        },
+        {
+            '序号': 20, '高校名称': '贵州大学', '学院名称': '动物科学学院', '地理大区': '西南地区', '所在省市': '贵州贵阳',
+            '办学层次': '一流学科建设高校 (211/双一流)', '特色聚焦畜种': '生猪 (香猪) · 羊业 (白山羊) · 肉牛',
+            '优势特色学科': '喀斯特山地生态畜牧业、从江香猪保种与小型猪医学模型、贵州优质白山羊选育',
+            '人才培养与咨询重点': '山地生态畜牧拔尖人才基地，解决复杂喀斯特地形饲草保障与健康养殖难题',
+            '官方网站': 'http://as.gzu.edu.cn/'
+        },
+        {
+            '序号': 21, '高校名称': '兰州大学', '学院名称': '草地农业科技学院/生态学院', '地理大区': '西北地区', '所在省市': '甘肃兰州',
+            '办学层次': '一流大学建设高校 (985/211)', '特色聚焦畜种': '羊业 (肉羊) · 肉牛 · 高原牦牛',
+            '优势特色学科': '草地农业生态系统全国重点实验室、反刍家畜放牧行为与营养代谢调控、高寒草地畜牧生态平衡',
+            '人才培养与咨询重点': '我国草业科学顶尖A+学科依托，培养草畜结合、反刍家畜生态精准饲养高端科研战略人才',
+            '官方网站': 'https://caas.lzu.edu.cn/'
+        },
+        {
+            '序号': 22, '高校名称': '宁夏大学', '学院名称': '农林与生态学部 (动物科技系)', '地理大区': '西北地区', '所在省市': '宁夏银川',
+            '办学层次': '一流学科建设高校 (211/双一流)', '特色聚焦畜种': '羊业 (盐池滩羊皮用羊) · 奶牛',
+            '优势特色学科': '盐池滩羊二毛皮花弯与毛穗基因表达谱、滩羊肉风味品质形成机制、贺兰山东麓优质高产奶牛技术',
+            '人才培养与咨询重点': '宁夏优势特色滩羊与奶牛支柱产业智库，培养精通地方皮肉特色羊与现代化牧场管理的骨干',
+            '官方网站': 'https://nlsb.nxu.edu.cn/'
+        },
+        {
+            '序号': 23, '高校名称': '山西农业大学', '学院名称': '动物科学学院', '地理大区': '华北地区', '所在省市': '山西晋中/太原',
+            '办学层次': '省部共建重点高校', '特色聚焦畜种': '肉牛 (晋南黄牛) · 羊业 (雁北肉羊)',
+            '优势特色学科': '晋南牛良种复壮与杂交改良、雁北肉羊高效多羔舍饲育肥、黄土丘陵区非常规粗饲料发酵利用',
+            '人才培养与咨询重点': '山西草食畜牧业产业技术体系主力军，草食反刍家畜实战型技术推广人才基地',
+            '官方网站': 'https://dkxy.sxau.edu.cn/'
+        },
+        {
+            '序号': 24, '高校名称': '福建农林大学', '学院名称': '动物科学学院 (蜂学学院)', '地理大区': '华东地区', '所在省市': '福建福州',
+            '办学层次': '省属一流大学建设高校', '特色聚焦畜种': '特种经济动物 (蜜蜂) · 羊业 (闽东黑羊) · 家禽',
+            '优势特色学科': '全国唯一独立蜂学专业与蜂生物学教育部工程研究中心、亚热带草食山羊生态舍饲、地方白羽半番鸭',
+            '人才培养与咨询重点': '蜂学学科全国领头羊，特种经济动物饲养与生态循环畜牧业特色人才基地',
+            '官方网站': 'https://dkxy.fafu.edu.cn/'
+        }
+    ]
+
+    # 多维动态检索与筛选控制台
+    st.subheader("🔍 网页内直接查询高校动科院所与科研咨询信息")
+    c_s1, c_s2, c_s3, c_s4 = st.columns([3, 1, 1, 1])
+    search_kw = c_s1.text_input("输入高校/学院名称、省市、研究方向或优势特色关键词（支持模糊搜索）：", placeholder="例如：西北农林 / 奶山羊 / 生猪 / 985 / 蛋鸡 / 肉牛 / 滩羊 / 北京", key="edu_search_kw")
+    sel_region = c_s2.selectbox("地理大区", ["全部大区", "西北地区", "华北地区", "华东地区", "华中地区", "华南地区", "西南地区", "东北地区"], key="edu_sel_reg")
+    sel_level = c_s3.selectbox("办学层次", ["全部层次", "一流大学 (985)", "一流学科 (211/双一流)", "省属及部省共建重点"], key="edu_sel_lvl")
+    sel_species = c_s4.selectbox("聚焦畜种", ["全部畜种", "生猪 (Swine)", "奶牛 (Dairy Cattle)", "肉牛 (Beef Cattle)", "羊业 (奶山羊/肉羊/滩羊)", "禽业 (蛋鸡/肉鸡/水禽)"], key="edu_sel_sp")
+
+    # 过滤逻辑
+    filtered = []
+    for c in colleges_data:
+        kw_match = True
+        if search_kw.strip():
+            kw = search_kw.strip().lower()
+            combined = f"{c['高校名称']} {c['学院名称']} {c['所在省市']} {c['办学层次']} {c['特色聚焦畜种']} {c['优势特色学科']} {c['人才培养与咨询重点']}".lower()
+            kw_match = kw in combined
+        
+        region_match = True
+        if sel_region != "全部大区":
+            region_match = (c['地理大区'] == sel_region)
+            
+        level_match = True
+        if sel_level == "一流大学 (985)":
+            level_match = ("985" in c['办学层次'])
+        elif sel_level == "一流学科 (211/双一流)":
+            level_match = (("211" in c['办学层次'] or "双一流" in c['办学层次']) and ("985" not in c['办学层次']))
+        elif sel_level == "省属及部省共建重点":
+            level_match = ("985" not in c['办学层次'] and "211" not in c['办学层次'])
+            
+        species_match = True
+        if sel_species == "生猪 (Swine)":
+            species_match = ("生猪" in c['特色聚焦畜种'] or "猪" in c['优势特色学科'])
+        elif sel_species == "奶牛 (Dairy Cattle)":
+            species_match = ("奶牛" in c['特色聚焦畜种'] or "奶" in c['优势特色学科'])
+        elif sel_species == "肉牛 (Beef Cattle)":
+            species_match = ("肉牛" in c['特色聚焦畜种'] or "牛" in c['优势特色学科'])
+        elif sel_species == "羊业 (奶山羊/肉羊/滩羊)":
+            species_match = ("羊" in c['特色聚焦畜种'] or "羊" in c['优势特色学科'])
+        elif sel_species == "禽业 (蛋鸡/肉鸡/水禽)":
+            species_match = ("鸡" in c['特色聚焦畜种'] or "禽" in c['特色聚焦畜种'] or "禽" in c['优势特色学科'])
+            
+        if kw_match and region_match and level_match and species_match:
+            filtered.append(c)
+
+    st.caption(f"🎯 共检索匹配到 **{len(filtered)}** 所高校动物科技学院（已收录 24 所全国农林院所，提供官方门户直达）：")
+
+    if not filtered:
+        st.warning("⚠️ 未检索到匹配的高校动物科技学院，请尝试调整搜索关键词或重置筛选下拉框。")
+    else:
+        col_c1, col_c2 = st.columns(2)
+        for idx, c in enumerate(filtered):
+            target_col = col_c1 if idx % 2 == 0 else col_c2
+            with target_col:
+                with st.container():
+                    badge_color = "#2E75B6" if "985" in c['办学层次'] else ("#1B806A" if "211" in c['办学层次'] or "双一流" in c['办学层次'] else "#D9822B")
+                    st.markdown(f"""
+                    <div style='background-color:#161B22; border:1px solid #30363D; border-radius:8px; padding:16px 18px; margin-bottom:12px;'>
+                        <div style='display:flex; justify-content:space-between; align-items:center;'>
+                            <span style='font-size:16px; font-weight:bold; color:#FFFFFF;'>🏛️ {c['高校名称']} · {c['学院名称']}</span>
+                            <span style='background-color:{badge_color}; color:#FFFFFF; font-size:11px; padding:2px 8px; border-radius:4px;'>{c['所在省市']} · {c['办学层次'][:12]}</span>
+                        </div>
+                        <div style='margin-top:8px; font-size:13px; color:#58A6FF;'>
+                            🏷️ <strong>特色聚焦畜种</strong>: {c['特色聚焦畜种']}
+                        </div>
+                        <div style='margin-top:6px; font-size:12px; color:#C9D1D9; line-height:1.5;'>
+                            🔬 <strong>优势学科方向</strong>: {c['优势特色学科']}
+                        </div>
+                        <div style='margin-top:6px; font-size:12px; color:#8C9BAB; line-height:1.4;'>
+                            🎓 <strong>培养与咨询重点</strong>: {c['人才培养与咨询重点']}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.link_button(f"🌐 访问 {c['高校名称']} 学院官网直达", c['官方网站'], use_container_width=True)
+                    st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+
+    # 完整名录数据表与一键 Excel 导出
+    with st.expander("📋 查看全国高校动科院所全景信息数据表与导出", expanded=False):
+        df_colleges = pd.DataFrame(colleges_data)
+        st.dataframe(df_colleges[['序号', '高校名称', '学院名称', '地理大区', '所在省市', '办学层次', '特色聚焦畜种', '优势特色学科', '官方网站']], use_container_width=True, hide_index=True)
+        excel_colleges_path = CURRENT_DIR / "全国农林高校动物科技学院名录与科研咨询指南.xlsx"
+        if excel_colleges_path.exists():
+            with open(excel_colleges_path, "rb") as f_c:
+                bytes_c = f_c.read()
+            st.download_button(
+                label="📥 导出完整高校动科院所名录 (Excel)",
+                data=bytes_c,
+                file_name="全国农林高校动物科技学院名录与科研咨询指南.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="download_colleges_excel_btn"
+            )
 
 # =====================================================================
 # 六、现代畜牧产业金融、前十企与期货大宗行情矩阵（全畜种覆盖）
@@ -1700,6 +2087,8 @@ with st.sidebar:
     - **权威行业新闻、DOI直达论文与现代产业金融**
     """)
     
+    render_admin_sidebar_auth()
+
     st.markdown("---")
     st.subheader("📬 开发者联系方式")
     st.markdown("""
@@ -2107,6 +2496,9 @@ if "全景平铺" in view_mode:
     render_research_papers_section(animal_choice)
     render_section_divider()
 
+    render_education_section()
+    render_section_divider()
+
     render_finance_section(animal_choice)
     render_section_divider()
 
@@ -2114,12 +2506,13 @@ if "全景平铺" in view_mode:
 
 else:
     # 标签选项卡模式
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
         "📊 生产经营走势", 
         "🍩 成本效益结构", 
         "📑 台账质量体检",
         "📰 行业新闻资讯", 
         "📚 权威论文 (DOI)", 
+        "🎓 人才培养 (动科院所)",
         "💹 产业金融与期货", 
         "📥 测算结果与模版"
     ])
@@ -2134,8 +2527,10 @@ else:
     with tab5:
         render_research_papers_section(animal_choice)
     with tab6:
-        render_finance_section(animal_choice)
+        render_education_section()
     with tab7:
+        render_finance_section(animal_choice)
+    with tab8:
         render_species_export(animal_choice, df_calc)
 
 # =====================================================================

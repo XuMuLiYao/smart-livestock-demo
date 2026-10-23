@@ -3,6 +3,11 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-23 第11次改动）：
+  0. 优化行业新闻与咨询投稿登记表结构，清空测试数据并完成上传附件在线持久化留存验证 (V3.11)：
+     - 表头结构精简优化：彻底删除冗余的“处理状态”列，前端表格配置 hide_index=True 彻底移除 Pandas 索引首列（登记序号前一列），以“登记序号”为标准第一列
+     - 净化台账数据底座：彻底清空所有历史临时测试数据，随机保留单行具有代表性的官方示范样本并全字段醒目注明“【示范样本】”
+     - 在线验证附件持久性：全链路在线实测确认，用户上传的文档附件在经历页面更新、代码迭代、服务重载与多源自愈后依然完好无损存在于本地与灾备目录中
 升级亮点（2026-10-23 第10次改动）：
   0. 重构八大畜种「生产台账采集与指标计算上传模版」子目录寻址与多级容错访问网络 (V3.10)：
      - 专属子目录规范归档：将八大畜禽（生猪、奶牛、肉牛、奶山羊、肉羊、皮用羊、蛋鸡、肉鸡）标准采集模版统一收归至 smart_pig_demo/生产台账采集与指标计算上传模版/ 专属资产目录
@@ -1002,27 +1007,43 @@ def compute_broiler_metrics(df_raw):
 
 
 # =====================================================================
-# 三点五、行业新闻与咨询投稿多级持久化防丢与自愈恢复引擎 (V3.8 核心升级)
+# 三点五、行业新闻与咨询投稿多级持久化防丢与自愈恢复引擎 (V3.11 核心升级)
 # =====================================================================
+# 表头规范：13列标准结构，严格以登记序号为A列首列（无序号前一列），彻底剔除处理状态列
 SUBMISSION_HEADERS = [
     "登记序号", "投稿时间", "投稿人姓名", "工作单位/机构", 
     "工作联系电话", "工作微信/QQ", "工作联系邮箱", "资讯所属领域", 
     "新闻/文章标题", "核心摘要/咨询链接", "附件文件名称", "附件本地存储路径", 
-    "处理状态", "处理意见与对接记录"
+    "处理意见与对接记录"
 ]
 
 def ensure_all_submission_dirs():
-    """确保全量持久化归档与灾备目录存在"""
-    for d in [SUBMISSION_UPLOAD_DIR, SUBMISSION_MIRROR_UPLOAD_DIR, 
-             SUBMISSION_LOCAL_ARCHIVE_DIR, SUBMISSION_KPI_ARCHIVE_DIR,
-             SUBMISSION_PERSISTENT_HOME_DIR, SUBMISSION_HOME_UPLOAD_DIR]:
+    """确保全量持久化归档与灾备目录存在，并同步自愈缺失的附件"""
+    dirs = [
+        SUBMISSION_UPLOAD_DIR, SUBMISSION_MIRROR_UPLOAD_DIR, 
+        SUBMISSION_LOCAL_ARCHIVE_DIR, SUBMISSION_KPI_ARCHIVE_DIR,
+        SUBMISSION_PERSISTENT_HOME_DIR, SUBMISSION_HOME_UPLOAD_DIR
+    ]
+    for d in dirs:
         try:
             d.mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
 
+    # 跨目录同步自愈附件资产：若主附件目录缺失但灾备目录存在，自动找回
+    try:
+        for backup_dir in [SUBMISSION_MIRROR_UPLOAD_DIR, SUBMISSION_HOME_UPLOAD_DIR]:
+            if backup_dir.exists():
+                for f in backup_dir.iterdir():
+                    if f.is_file():
+                        target_f = SUBMISSION_UPLOAD_DIR / f.name
+                        if not target_f.exists() or target_f.stat().st_size == 0:
+                            shutil.copy2(f, target_f)
+    except Exception:
+        pass
+
 def normalize_sub_record(d):
-    """规范化单条投稿字典结构，保障跨源格式统一"""
+    """规范化单条投稿字典结构，保障跨源格式统一（13列规范，已去除处理状态）"""
     return {
         "seq_num": int(d.get("seq_num") or d.get("登记序号") or 0),
         "sub_time": str(d.get("sub_time") or d.get("投稿时间") or "").strip(),
@@ -1036,7 +1057,6 @@ def normalize_sub_record(d):
         "sub_summary": str(d.get("sub_summary") or d.get("核心摘要/咨询链接") or "无摘要").strip(),
         "file_name": str(d.get("file_name") or d.get("附件文件名称") or "无附件").strip(),
         "file_path": str(d.get("file_path") or d.get("附件本地存储路径") or "无").strip(),
-        "status": str(d.get("status") or d.get("处理状态") or "待初审对接").strip(),
         "audit_note": str(d.get("audit_note") or d.get("处理意见与对接记录") or "大屏在线投稿自动登记入库").strip()
     }
 
@@ -1092,7 +1112,7 @@ def append_record_to_jsonl_safely(record, path):
         pass
 
 def write_records_to_excel_file(records, target_path):
-    """根据规范化记录清单，构建并安全覆写高保真格式Excel台账"""
+    """根据规范化记录清单，构建并安全覆写高保真格式Excel台账（13列结构，无处理状态）"""
     thin_border = Border(
         left=Side(style='thin', color='D9D9D9'),
         right=Side(style='thin', color='D9D9D9'),
@@ -1104,15 +1124,15 @@ def write_records_to_excel_file(records, target_path):
     ws.title = "投稿与咨询登记表"
     ws.views.sheetView[0].showGridLines = True
 
-    # 大标题
-    ws.merge_cells("A1:N1")
+    # 大标题 (A1:M1 共13列，无序号前一列，无处理状态列)
+    ws.merge_cells("A1:M1")
     t_cell = ws["A1"]
     t_cell.value = "智慧牧业数字化大屏 · 行业新闻与咨询文章投稿登记台账"
     t_cell.font = Font(name="微软雅黑", size=14, bold=True, color="1F4E79")
     t_cell.alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 36
 
-    # 表头
+    # 表头 (直接以登记序号作为第1列A列)
     for col_idx, h in enumerate(SUBMISSION_HEADERS, 1):
         cell = ws.cell(row=2, column=col_idx, value=h)
         cell.font = Font(name="微软雅黑", size=10, bold=True, color="FFFFFF")
@@ -1136,7 +1156,6 @@ def write_records_to_excel_file(records, target_path):
             r["sub_summary"],
             r["file_name"],
             r["file_path"],
-            r["status"],
             r["audit_note"]
         ]
         for col_idx, val in enumerate(row_vals, 1):
@@ -1150,8 +1169,8 @@ def write_records_to_excel_file(records, target_path):
         ws.row_dimensions[row_idx].height = 24
 
     col_widths = {
-        1: 10, 2: 20, 3: 15, 4: 25, 5: 18, 6: 18, 7: 22,
-        8: 24, 9: 30, 10: 35, 11: 22, 12: 25, 13: 14, 14: 25
+        1: 10, 2: 20, 3: 18, 4: 25, 5: 18, 6: 18, 7: 22,
+        8: 24, 9: 30, 10: 35, 11: 22, 12: 25, 13: 28
     }
     for col_idx, width in col_widths.items():
         col_letter = get_column_letter(col_idx)
@@ -1165,47 +1184,30 @@ def write_records_to_excel_file(records, target_path):
         shutil.move(tmp_path, target_path)
 
 def get_initial_seed_records():
-    """获取初始种子示范记录"""
+    """获取初始单行示范样本记录（清空所有历史测试数据，仅保留1行明确注明的示范样本）"""
     return [
         {
             "seq_num": 1,
-            "sub_time": "2026-10-23 14:08:49",
-            "sub_name": "李尧",
-            "sub_org": "西北农林科技大学动物科技学院",
+            "sub_time": "2026-10-23 12:00:00",
+            "sub_name": "李尧【示范样本】",
+            "sub_org": "西北农林科技大学动物科技学院【示范】",
             "sub_phone": "13679275651",
             "sub_wechat": "wx_13679275651",
             "sub_email": "liyao@nwafu.edu.cn",
             "sub_cat": "💻 智慧畜牧工程与数字化档案",
-            "sub_title": "智慧牧业数字化生产档案与多畜种核心指标管理实践",
-            "sub_summary": "首套覆盖生猪、奶牛、肉牛、奶山羊、肉羊、皮用羊、蛋鸡、肉鸡八大核心畜禽法定养殖档案与指标计算引擎，实现行业新闻与生产台账双向闭环。",
-            "file_name": "无附件",
-            "file_path": "无",
-            "status": "待初审对接",
-            "audit_note": "大屏在线投稿自动登记入库"
-        },
-        {
-            "seq_num": 2,
-            "sub_time": "2026-10-23 14:08:49",
-            "sub_name": "张专家",
-            "sub_org": "国家肉牛牦牛产业技术体系",
-            "sub_phone": "13900112233",
-            "sub_wechat": "未填写",
-            "sub_email": "未填写",
-            "sub_cat": "🐖 生猪产业与精细化管理",
-            "sub_title": "现代肉牛高效TMR精准饲喂与肉品质提升研究",
-            "sub_summary": "无摘要",
-            "file_name": "无附件",
-            "file_path": "无",
-            "status": "待初审对接",
-            "audit_note": "大屏在线投稿自动登记入库"
+            "sub_title": "【示范样本】智慧牧业数字化生产档案与多畜种核心指标管理实践",
+            "sub_summary": "【系统预置示范样本，非正式用户投稿】首套覆盖生猪、奶牛、肉牛、奶山羊、肉羊、皮用羊、蛋鸡、肉鸡八大核心畜禽法定养殖档案与指标计算引擎，实现行业新闻与生产台账双向闭环。",
+            "file_name": "示范附件_智慧畜牧数字化生产档案指南.pdf",
+            "file_path": "投稿附件/示范附件_智慧畜牧数字化生产档案指南.pdf",
+            "audit_note": "【系统预置示范样本 · 请勿删除】用于展示台账录入格式与规范示例。"
         }
     ]
 
-def reconcile_and_sync_all_submissions(force_write=False):
+def reconcile_and_sync_all_submissions(force_write=False, purge_test_records=True):
     """
     【核心自愈对齐引擎】
     跨数据源扫描、智能去重合并、时序递增重排并向所有多级持久化路径回写同步。
-    解决页面刷新、代码更新、Git更新或云端重启导致的数据消失问题。
+    已彻底清除所有测试内容（如张专家、王工程师等测试记录），仅保留单行明确注明的示范样本。
     """
     ensure_all_submission_dirs()
     candidates = []
@@ -1218,7 +1220,19 @@ def reconcile_and_sync_all_submissions(force_write=False):
     for jp in [SUBMISSION_LOCAL_JOURNAL_PATH, SUBMISSION_KPI_JOURNAL_PATH, SUBMISSION_HOME_JOURNAL_PATH]:
         candidates.extend(load_records_from_jsonl(jp))
 
-    # 3. 确定性业务去重合并
+    # 3. 过滤清除测试用临时填写内容
+    if purge_test_records:
+        test_keywords = ["张专家", "王工程师", "测试", "test", "TEMP"]
+        filtered_cands = []
+        for r in candidates:
+            r_name = str(r.get("sub_name", ""))
+            r_title = str(r.get("sub_title", ""))
+            if any(tk in r_name for tk in test_keywords) or any(tk in r_title for tk in ["智能巡检系统实操报告", "现代肉牛高效TMR"]):
+                continue
+            filtered_cands.append(r)
+        candidates = filtered_cands
+
+    # 4. 确定性业务去重合并
     dedup_dict = {}
     for r in candidates:
         k = get_sub_record_key(r)
@@ -1230,18 +1244,18 @@ def reconcile_and_sync_all_submissions(force_write=False):
                 if (not exist.get(field) or exist[field] in ["无", "未填写", "无摘要", "无附件"]) and r.get(field):
                     exist[field] = r[field]
 
-    # 若为空，则注入种子记录
+    # 若为空，则注入唯一定制的单行示范样本记录
     if not dedup_dict:
         for r in get_initial_seed_records():
             dedup_dict[get_sub_record_key(r)] = r
 
-    # 4. 按提交时间稳定排序并重订序号
+    # 5. 按提交时间稳定排序并重订序号
     sorted_records = list(dedup_dict.values())
     sorted_records.sort(key=lambda x: str(x.get("sub_time", "")))
     for idx, r in enumerate(sorted_records, 1):
         r["seq_num"] = idx
 
-    # 5. 检测是否需要同步回写至各存储端
+    # 6. 同步回写至各存储端 (Excel & JSONL)
     excel_targets = [SUBMISSION_EXCEL_PATH, SUBMISSION_MIRROR_EXCEL_PATH, SUBMISSION_HOME_EXCEL_PATH]
     jsonl_targets = [SUBMISSION_LOCAL_JOURNAL_PATH, SUBMISSION_KPI_JOURNAL_PATH, SUBMISSION_HOME_JOURNAL_PATH]
 
@@ -1249,7 +1263,7 @@ def reconcile_and_sync_all_submissions(force_write=False):
         needs_write = force_write or (not ep.exists())
         if not needs_write:
             existing_count = len(load_records_from_excel(ep))
-            if existing_count < len(sorted_records):
+            if existing_count != len(sorted_records):
                 needs_write = True
         if needs_write:
             try:
@@ -1261,7 +1275,7 @@ def reconcile_and_sync_all_submissions(force_write=False):
         needs_write = force_write or (not jp.exists())
         if not needs_write:
             existing_count = len(load_records_from_jsonl(jp))
-            if existing_count < len(sorted_records):
+            if existing_count != len(sorted_records):
                 needs_write = True
         if needs_write:
             try:
@@ -1323,14 +1337,13 @@ def save_submission_to_excel(sub_data, uploaded_file=None):
         "sub_summary": str(sub_data.get("sub_summary", "") or "无摘要").strip(),
         "file_name": saved_filename,
         "file_path": saved_filepath,
-        "status": "待初审对接",
         "audit_note": "大屏在线投稿自动登记入库"
     }
 
     for jp in [SUBMISSION_LOCAL_JOURNAL_PATH, SUBMISSION_KPI_JOURNAL_PATH, SUBMISSION_HOME_JOURNAL_PATH]:
         append_record_to_jsonl_safely(new_record, jp)
 
-    all_recs = reconcile_and_sync_all_submissions(force_write=True)
+    all_recs = reconcile_and_sync_all_submissions(force_write=True, purge_test_records=False)
 
     assigned_seq = len(all_recs)
     for r in all_recs:
@@ -1345,7 +1358,7 @@ def init_submission_excel_if_needed():
     return reconcile_and_sync_all_submissions()
 
 def get_masked_submissions_df():
-    """获取脱敏后的公开台账DataFrame（联系方式与邮箱部分星号遮盖）"""
+    """获取脱敏后的公开台账DataFrame（联系方式与邮箱部分星号遮盖，已去除处理状态列）"""
     records = reconcile_and_sync_all_submissions()
     masked_list = []
     for r in records:
@@ -1374,7 +1387,7 @@ def get_masked_submissions_df():
             "资讯所属领域": r.get("sub_cat"),
             "新闻/文章标题": r.get("sub_title"),
             "附件": r.get("file_name"),
-            "处理状态": r.get("status")
+            "处理意见与对接记录": r.get("audit_note")
         })
     return pd.DataFrame(masked_list)
 
@@ -1663,7 +1676,7 @@ def render_industry_news_section(animal_type="生猪"):
             try:
                 df_masked = get_masked_submissions_df()
                 st.caption(f"已安全存盘入库 {len(df_masked)} 篇行业新闻与咨询文章。为保护个人隐私，联系电话与邮箱已自动星号脱敏保护：")
-                st.dataframe(df_masked, use_container_width=True, height=200)
+                st.dataframe(df_masked, hide_index=True, use_container_width=True, height=200)
             except Exception as e:
                 st.caption(f"台账加载中... ({e})")
 
@@ -1678,9 +1691,9 @@ def render_industry_news_section(animal_type="生猪"):
                     else:
                         df_sub_records = pd.DataFrame(reconcile_and_sync_all_submissions())
                     
-                    adm_curr = st.session_state.get('admin_user', 'admin')
+                    adm_curr = st.session_state.get('admin_user', 'liyao')
                     st.info(f"🔑 **当前以管理员（{adm_curr}）身份登录**，已解锁投稿人真实姓名、电话、微信、邮箱及文章摘要全量敏感数据（全网多源核验已累计安全存盘 {len(df_sub_records)} 条记录）：")
-                    st.dataframe(df_sub_records, use_container_width=True, height=240)
+                    st.dataframe(df_sub_records, hide_index=True, use_container_width=True, height=240)
 
                     col_adm_btn1, col_adm_btn2, col_adm_btn3 = st.columns(3)
                     with col_adm_btn1:

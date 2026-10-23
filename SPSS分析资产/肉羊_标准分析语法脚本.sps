@@ -3,7 +3,7 @@
 * IBM SPSS Statistics 语法批处理脚本.
 * 项目：智慧牧业数字化工程 · 核心指标深度统计分析.
 * 畜种：肉羊 | 对应数据集：Meat_Sheep_SPSS_Dataset.
-* 生成时间：2026-10-23 15:12:39.
+* 生成时间：2026-10-23 15:34:31.
 * ====================================================================.
 
 * 1. 自动定义与导入外部数据源.
@@ -61,7 +61,16 @@ CORRELATIONS
   /PRINT=TWOTAIL NOSIG
   /MISSING=PAIRWISE.
 
-* 7. 保存为 IBM SPSS 官方原生数据集 (.sav).
+* 7. 自动配置多元线性回归分析与共线性诊断指令 (REGRESSION & VIF).
+REGRESSION
+  /MISSING LISTWISE
+  /STATISTICS COEFF OUTS R ANOVA COLLIN TOL
+  /CRITERIA=PIN(.05) POUT(.10)
+  /NOORIGIN
+  /DEPENDENT ProfitPerSheep
+  /METHOD=ENTER EndSheep OutSheep ADG.
+
+* 8. 保存为 IBM SPSS 官方原生数据集 (.sav).
 SAVE OUTFILE="Meat_Sheep_SPSS_Dataset.sav"
   /COMPRESSED.
 EXECUTE.

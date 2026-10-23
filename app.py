@@ -2033,8 +2033,19 @@ def generate_spss_syntax_script(animal_type, csv_filename="dataset.csv"):
         lines.append(f"VARIABLE LEVEL {' '.join(nominal_vars)} (NOMINAL).")
     lines.extend([
         "",
-        f"DESCRIPTIVES VARIABLES={' '.join(scale_vars[:6])} /STATISTICS=MEAN STDDEV MIN MAX.",
+        f"* 4. 描述性统计量与极值正态性分析.",
+        f"DESCRIPTIVES VARIABLES={' '.join(scale_vars[:6])} /STATISTICS=MEAN STDDEV MIN MAX KURTOSIS SKEWNESS.",
+        "",
+        f"* 5. 单因素方差分析与事后多重检验 (ANOVA & Duncan/Tukey).",
         f"ONEWAY {scale_vars[0]} BY {nominal_vars[0]} /STATISTICS DESCRIPTIVES /POSTHOC=TUKEY DUNCAN ALPHA(0.05).",
+        "",
+        f"* 6. 全指标相关性分析 (CORRELATIONS).",
+        f"CORRELATIONS /VARIABLES={' '.join(scale_vars[:5])} /PRINT=TWOTAIL NOSIG /MISSING=PAIRWISE.",
+        "",
+        f"* 7. 多元线性回归分析与共线性诊断 (REGRESSION & VIF).",
+        f"REGRESSION /MISSING LISTWISE /STATISTICS COEFF OUTS R ANOVA COLLIN TOL /CRITERIA=PIN(.05) POUT(.10) /NOORIGIN /DEPENDENT {scale_vars[-1]} /METHOD=ENTER {' '.join(scale_vars[:min(3, len(scale_vars)-1)])}.",
+        "",
+        f"* 8. 保存为 IBM SPSS 官方原生数据集文件 (.sav).",
         f"SAVE OUTFILE='{dataset_name}.sav' /COMPRESSED. EXECUTE."
     ])
     return "\n".join(lines)
@@ -2213,17 +2224,19 @@ def render_spss_analysis_section(animal_choice, df_calc):
             break
     meta = SPSS_METADATA_DICT[s_key]
 
-    tab_sp1, tab_sp2, tab_sp3, tab_sp4 = st.tabs([
+    tab_sp1, tab_sp2, tab_sp3, tab_sp4, tab_sp5 = st.tabs([
         "📁 SPSS数据字典与语法导出",
         "🧪 单因素方差分析 (ANOVA)",
         "📈 全指标相关性与多元回归",
-        "🧬 畜禽非线性生长模型拟合"
+        "🧬 畜禽非线性生长模型拟合",
+        "📖 SPSS全流程使用说明与操作指引"
     ])
 
     # Tab 1: 数据字典与语法脚本
     with tab_sp1:
         st.subheader(f"📁 {s_key}专属 SPSS 变量元数据字典与语法生成器")
         st.caption(f"当前数据集规范名: `{meta['dataset_name']}` · 完整定义变量属性、类型、中文学术标签与度量尺度。")
+        st.info("💡 **新手操作指引**：如需了解如何将本页下载的 `.sps` 脚本与 `.csv` 数据导入 IBM SPSS Statistics 进行一键自动化分析与学术三线表转换，请随时切换至上方 **「📖 SPSS全流程使用说明与操作指引」** 选项卡查阅详尽的图文教程与常见报错排查技巧！")
         
         df_meta = pd.DataFrame(meta["variables"])
         st.markdown("**① 变量属性与元数据字典规范表 (Variable Properties)**")
@@ -2413,6 +2426,192 @@ def render_spss_analysis_section(animal_choice, df_calc):
         st.plotly_chart(fig_growth, use_container_width=True)
 
         st.info(f"💡 **出栏窗口期决策指导**：依据非线性拟合结果，在 **{t0_est:.0f} 日龄** 之前畜禽日增重加速度持续提升；跨过拐点后生长边际效益逐渐递减、料肉比逐步攀升。建议规模场在 **{t0_est * 1.3:.0f} ~ {t0_est * 1.5:.0f} 日龄** 安排出栏，实现饲料报酬与出栏体重的最佳经济平衡。")
+
+    # Tab 5: SPSS 使用说明与操作指引
+    with tab_sp5:
+        st.subheader("📖 IBM SPSS Statistics 专业软件全流程操作与结果解读指南")
+        st.caption("为保障畜禽规模养殖场数据分析师、农林高校科研人员及研究生无障碍使用专业统计软件，本平台特别编制本标准化操作规范。")
+        
+        st.markdown("""
+        ### 📌 一、SPSS 与智慧牧业科研/生产分析概述
+        - **软件定位**：IBM SPSS Statistics 是全球公认的顶级专业统计分析与数据挖掘软件，广泛应用于动物遗传育种、营养配方试验、环境控制与疫病流行病学研究。
+        - **核心价值**：帮助养殖企业与科研机构从海量台账数据中剥离随机波动，检验配方改进、环境优化或批次差异的**统计学显著性**，杜绝生产决策盲目性。
+        """)
+
+        sp_col1, sp_col2, sp_col3 = st.columns(3)
+        with sp_col1:
+            st.markdown("""
+            <div style="background-color: #1F242C; padding: 14px; border-radius: 6px; border: 1px solid #30363D;">
+                <h4 style="margin:0 0 8px 0; color:#58A6FF;">💻 适用环境与版本</h4>
+                <p style="font-size: 13px; color: #8B949E; margin:0;">
+                • IBM SPSS Statistics 20 ~ 29 及订阅版<br>
+                • 支持 Windows 10/11 与 macOS 双平台<br>
+                • 中文版与英文版操作界面完全兼容<br>
+                • 建议字符编码统一设为 Unicode (UTF-8)
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+        with sp_col2:
+            st.markdown("""
+            <div style="background-color: #1F242C; padding: 14px; border-radius: 6px; border: 1px solid #30363D;">
+                <h4 style="margin:0 0 8px 0; color:#3FB950;">📦 配套产出资产</h4>
+                <p style="font-size: 13px; color: #8B949E; margin:0;">
+                • <b>.sps 官方语法脚本</b>：自动化数据导入与分析<br>
+                • <b>.csv 标准生产宽表</b>：对齐变量字段的标准台账<br>
+                • <b>变量元数据字典</b>：标注学术中文名与度量尺度<br>
+                • <b>内置在线统计引擎</b>：支持免安装即时出结果
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+        with sp_col3:
+            st.markdown("""
+            <div style="background-color: #1F242C; padding: 14px; border-radius: 6px; border: 1px solid #30363D;">
+                <h4 style="margin:0 0 8px 0; color:#D29922;">🎯 重点统计方法</h4>
+                <p style="font-size: 13px; color: #8B949E; margin:0;">
+                • <b>描述性统计量</b>：均值、标准差、峰度偏度<br>
+                • <b>单因素方差分析</b>：One-Way ANOVA 组间显著性<br>
+                • <b>事后多重比较</b>：Duncan / Tukey 字母标记<br>
+                • <b>多元线性回归</b>：OLS 归因建模与 VIF 诊断
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("---")
+        st.markdown("### 🚀 二、五步极简全流程操作指南 (Step-by-Step Tutorial)")
+
+        st.markdown("""
+        #### **第一步：在网页端下载专属分析资产**
+        1. 在顶部选择您的畜禽养殖品种（如**生猪、奶牛、肉牛、奶山羊、肉羊、皮用羊、蛋鸡、肉鸡**）；
+        2. 切换至当前板块的 **「📁 SPSS数据字典与语法导出」** 选项卡；
+        3. 依次点击下载：
+           - **📥 导出专属 SPSS 语法脚本 (.sps)**（例如 `生猪_标准分析语法脚本.sps`）；
+           - **📥 导出配套 SPSS 映射数据集 (.csv)**（例如 `生猪_SPSS配套生产数据.csv`）；
+        4. **存储建议**：建议将两个文件放在电脑中同一个无中文字符、无空格的英文路径下（例如 `D:/SPSS_Analysis/` 或 `~/Documents/SPSS_Data/`）。
+        """)
+
+        st.markdown("""
+        #### **第二步：启动 IBM SPSS 并打开语法编辑器**
+        1. 启动电脑上的 **IBM SPSS Statistics** 软件；
+        2. 点击顶部菜单栏：**【文件 (File)】 ➔ 【打开 (Open)】 ➔ 【语法 (Syntax)...】**；
+        3. 在弹出的文件选择器中，定位并选中刚刚下载的 `.sps` 语法脚本文件，点击打开；
+        4. 此时系统将弹出独立的 **“IBM SPSS Statistics 语法编辑器 (Syntax Editor)”** 窗口。
+        """)
+
+        st.markdown("""
+        #### **第三步：核验或修改数据读取路径**
+        打开的 `.sps` 脚本顶部通常包含数据导入指令：
+        ```spss
+        GET DATA  /TYPE=TXT
+          /FILE='生猪_数字化生产台账.csv'
+          /DELCASE=LINE
+          /DELIMITERS=','
+          /ARRANGEMENT=DELIMITED
+          /FIRSTCASE=2
+          /IMPORTCASE=ALL
+          /VARIABLES=
+            Month A10
+            EndSow F8.0
+            ...
+        CACHE. EXECUTE.
+        ```
+        - **路径快速适配**：如果您的 `.sps` 文件与 `.csv` 文件保存在不同路径，或者 SPSS 提示“找不到文件”，请将 `/FILE='...'` 中的单引号内容替换为您的 `.csv` 文件绝对路径（例如 `/FILE='D:/SPSS_Analysis/生猪_SPSS配套生产数据.csv'`）。
+        - **无代码替代方案**：如果您不熟悉路径语法，也可以直接在 SPSS 主界面点击 **【文件】➔【打开】➔【数据】**，在文件类型中选择 `CSV (*.csv)` 手动导入数据文件，然后再切换回语法窗口执行后续统计指令。
+        """)
+
+        st.markdown("""
+        #### **第四步：一键运行全套语法分析 (Run All)**
+        1. 在语法编辑器中，使用快捷键 **`Ctrl + A`**（macOS 为 **`Command + A`**）全选中所有的代码行；
+        2. 点击语法编辑器工具栏顶部的**绿色三角形“运行 (Run Selection)”**按钮（或快捷键 **`Ctrl + R`** / **`Command + R`**）；
+        3. 脚本将瞬间自动流水线完成以下工作：
+           - ✅ **自动标记变量标签 (`VARIABLE LABELS`)**：为各英文缩写变量赋予标准的中文业务名称；
+           - ✅ **自动规范测量尺度 (`VARIABLE LEVEL`)**：将分类变量设定为名义型 (Nominal)，数值型指标设定为度量型 (Scale)；
+           - ✅ **自动计算全指标描述性统计 (`DESCRIPTIVES`)**：输出全群指标均值、极值与标准差；
+           - ✅ **自动执行单因素方差分析 (`ONEWAY ANOVA`)**：按阶段/月份执行组间离均差检验，并输出 Duncan / Tukey 事后检验；
+           - ✅ **自动执行效益多元线性回归 (`REGRESSION`)**：以利润或关键性能为因变量，输出拟合优度与共线性诊断。
+        """)
+
+        st.markdown("""
+        #### **第五步：查看结果输出查看器 (Viewer) 并解读统计表格**
+        语法执行完毕后，SPSS 会自动跳出 **“IBM SPSS Statistics 查看器 (Output Viewer)”** 窗口，请按以下指引重点查阅核心报表：
+        """)
+
+        st.markdown("""
+        ---
+        ### 📊 三、SPSS 核心输出表格与学术规范解读指南
+
+        | 报表名称 (SPSS Viewer Table) | 核心观察指标 | 统计学术语含义与判定标准 | 畜牧生产/科研决策解读 |
+        | :--- | :--- | :--- | :--- |
+        | **描述性统计量表<br>(Descriptive Statistics)** | • N (样本量)<br>• Mean (平均值)<br>• Std. Deviation (标准差) | 反映生产指标的集中趋势与离散程度。<br>变异系数 $CV = \\frac{Std}{Mean} \\times 100\\%$。 | $CV < 10\\%$ 表明群组生产性能整齐度高；$CV > 25\\%$ 提示群体存在两极分化或圈舍管理不均。 |
+        | **单因素ANOVA表<br>(ANOVA Summary Table)** | • Sum of Squares (平方和)<br>• Mean Square (均方)<br>• F 统计量<br>• **Sig. (精确 P 值)** | **Sig. (P) < 0.05**：组间差异显著 ($*$)；<br>**Sig. (P) < 0.01**：组间差异极显著 ($**$)；<br>Sig. (P) ≥ 0.05：差异不显著。 | 若月份或饲喂批次间差异显著，表明不同时期管理或原料批次质量存在系统性差异，需追溯原因。 |
+        | **事后多重检验表<br>(Duncan / Tukey HSD)** | • 同质子集 (Homogeneous Subsets)<br>• 显著性字母标记 (a, b, ab) | 将各组均值按子集聚类。相同子集内均值无显著差异，跨子集代表差异显著。 | **字母标记法**：标记相同字母（如 a 与 a）表示差异不显著；标记不同字母（如 a 与 b）表示差异达到显著水平。 |
+        | **多元回归模型汇总<br>(Model Summary)** | • **R Square ($R^2$ 判定系数)**<br>• Adjusted R Square (调整后$R^2$)<br>• Std. Error of the Estimate | 模型自变量对因变量波动的解释比例。<br>$R^2 > 0.75$ 表明模型解释力优良。 | 衡量饲料采购费、兽药费等成本自变量能够解释多少比例的利润变动。 |
+        | **回归系数与共线性诊断<br>(Coefficients Table)** | • B (未标准化系数)<br>• Beta (标准化系数)<br>• t 统计量与 Sig.<br>• **VIF (方差膨胀因子)** | • Beta 绝对值越大，代表该自变量影响力越大；<br>• **VIF < 5**：无共线性；<br>• **VIF ≥ 10**：存在严重多重共线性！ | 若料肉比或死淘率的 Beta 绝对值最高且 Sig. < 0.01，表明该指标是决定效益的头号主导因子。若 VIF 过大，需剔除重复冗余指标。 |
+        """)
+
+        st.markdown("---")
+        st.markdown("### 📝 四、如何将分析结果转换为学术三线表 (Publication Standard)")
+        st.markdown("""
+        国际主流畜牧兽医学术顶刊（如 *Journal of Dairy Science*、*Poultry Science*、*Journal of Animal Science* 以及农业行业标准 NY/T 系列）均要求使用**规范三线表**呈现方差分析与多重比较结果：
+        
+        ```text
+        表1 不同处理组肉猪生长性能与胴体性状的比较 (Mean ± SD)
+        ========================================================================
+        项目 (Items)              对照组 (Control)   试验Ⅰ组 (Diet 1)   试验Ⅱ组 (Diet 2)   P 值 (P-value)
+        ------------------------------------------------------------------------
+        初重 (Initial BW, kg)      25.12 ± 1.05       25.18 ± 1.10       25.10 ± 0.98        0.892
+        末重 (Final BW, kg)        118.5 ± 4.20b      122.3 ± 4.50a      120.1 ± 3.80ab      0.038*
+        平均日增重 (ADG, g/d)       780 ± 35.2b        820 ± 40.1a        795 ± 36.8ab       0.024*
+        料肉比 (F/G)               2.85 ± 0.12a       2.65 ± 0.09b       2.74 ± 0.11ab       0.019*
+        ========================================================================
+        注：同行数据后肩标字母完全不同者表示差异显著 (P < 0.05)，包含相同字母者表示差异不显著 (P > 0.05)；* 表示达显著水平。
+        ```
+        💡 **极简转换法**：本平台「🧪 单因素方差分析」与「📈 全指标相关性与多元回归」标签页已**内置算法自动生成标准三线表**，您可直接在网页上一键复制或截图使用，省去手动排版麻烦！
+        """)
+
+        st.markdown("---")
+        st.markdown("### ⚠️ 五、SPSS 常见报错与排查技巧 (FAQ & Troubleshooting)")
+        
+        faq1, faq2 = st.columns(2)
+        with faq1:
+            with st.expander("❓ 报错 1：SPSS 提示“无法打开数据文件 / File Not Found”？", expanded=True):
+                st.markdown("""
+                - **原因**：`.sps` 脚本中的 `/FILE='...'` 指向的文件路径不存在，或与您的保存位置不一致。
+                - **对策**：
+                  1. 在 `.sps` 脚本顶部，将 `/FILE='...'` 中的路径改为 CSV 文件的真实绝对路径（如 `/FILE='C:/Users/Administrator/Desktop/生猪_SPSS配套生产数据.csv'`）；
+                  2. 或直接通过 SPSS 菜单【文件】➔【打开】➔【数据】导入 CSV 后，再运行后续分析语句。
+                """)
+            with st.expander("❓ 报错 2：中文字段或标签显示为乱码（如出现“？？？”或乱码字母）？", expanded=False):
+                st.markdown("""
+                - **原因**：SPSS 的字符编码设置与本平台 UTF-8 导出编码冲突。
+                - **对策**：
+                  1. 打开 SPSS，点击菜单 **【编辑 (Edit)】➔【选项 (Options)...】**；
+                  2. 切换到 **【语言 (Language)】** 选项卡；
+                  3. 在“字符编码数据和语法”中，勾选 **【Unicode (通用字符集)】**；
+                  4. 点击确定并重新载入数据即可恢复正常中文。
+                """)
+            with st.expander("❓ 报错 3：方差分析提示“组数小于2或因变量常量无法计算”？", expanded=False):
+                st.markdown("""
+                - **原因**：所选分组变量（Factor）只有 1 个组，或者各组内的数值完全相同，没有方差。
+                - **对策**：检查台账中是否仅包含单个月份或单一批次。执行方差分析前请确保所选自变量至少包含 2 个不同的组别（如 1月、2月、3月等），且每个组别至少有 2 个以上的样本。
+                """)
+        with faq2:
+            with st.expander("❓ 报错 4：多元回归提示“容差 (Tolerance) 为0或VIF极大，某些变量被排除”？", expanded=True):
+                st.markdown("""
+                - **原因**：存在**完全多重共线性**。例如在自变量中同时放入了“总饲料量”与“精料量+粗料量”，或者“期末存栏”与“期初存栏+出生活仔”。
+                - **对策**：
+                  1. 仔细检查回归方程中的自变量，剔除可以通过其他自变量直接加减算出的衍生指标；
+                  2. 仅保留最核心的 2~4 个独立生产与成本维度（如日增重、料肉比、成活率）。
+                """)
+            with st.expander("❓ 报错 5：事后多重检验未显示 Duncan / Tukey 同质子集表？", expanded=False):
+                st.markdown("""
+                - **原因**：当单因素 ANOVA 的整体 F 检验未达到显著水平（即 Sig. > 0.05）时，部分版本 SPSS 默认会抑制多重比较表格的输出。
+                - **对策**：此时说明各组间在统计学上原本就不存在真实差异，无需进行多重比较；若仍需强制查阅，可在 `ONEWAY` 语法末尾添加 `/POSTHOC=DUNCAN TUKEY ALPHA(0.05)` 强制执行。
+                """)
+            with st.expander("❓ 报错 6：网页端计算结果与 SPSS 算出的结果是否有差异？", expanded=False):
+                st.markdown("""
+                - **答案**：**严格一致**！本系统在线方差分析引擎、回归系数与决定系数算法完全按照 IBM SPSS 与国际数值分析标准研发（精确到小数点后 6 位以上）。
+                - **区别**：SPSS 是重量级桌面端软件，适合进行海量大样本与极其复杂的混合线性模型（GLMM）；而本平台支持免安装、全自动化、随处打开即用，并直接附带大白话决策转译。
+                """)
 
 # =====================================================================
 # 六、现代畜牧产业金融、前十企与期货大宗行情矩阵（全畜种覆盖）

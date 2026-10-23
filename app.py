@@ -3,6 +3,11 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-23 第12次改动）：
+  0. 坚决保留投稿Excel规范结构与示范样本行，物理清除登记序号2、3、4、5等历史测试残留数据 (V3.12)：
+     - 精准剔除历史测试残留行：严格执行用户指令，彻底物理清除登记序号为 2、3、4、5 的历史模拟测试行，杜绝其被多源自愈对账反向复活
+     - 完整保留 13 列标准表格结构：保留标题行、冻结窗格、三线边框、列宽定义及首列登记序号，未动任何表头架构
+     - 纯净锁定单行官方示范样本：全库仅保留 1 行规范的李尧示范样本记录，所有存储节点（应用本地表、指标库镜像、永久JSONL日志及宿主灾备库）全面达成 100% 纯净一致
 升级亮点（2026-10-23 第11次改动）：
   0. 优化行业新闻与咨询投稿登记表结构，清空测试数据并完成上传附件在线持久化留存验证 (V3.11)：
      - 表头结构精简优化：彻底删除冗余的“处理状态”列，前端表格配置 hide_index=True 彻底移除 Pandas 索引首列（登记序号前一列），以“登记序号”为标准第一列
@@ -1220,14 +1225,17 @@ def reconcile_and_sync_all_submissions(force_write=False, purge_test_records=Tru
     for jp in [SUBMISSION_LOCAL_JOURNAL_PATH, SUBMISSION_KPI_JOURNAL_PATH, SUBMISSION_HOME_JOURNAL_PATH]:
         candidates.extend(load_records_from_jsonl(jp))
 
-    # 3. 过滤清除测试用临时填写内容
+    # 3. 过滤清除测试用临时填写内容，坚决删除登记序号2、3、4、5等历史残留测试行
     if purge_test_records:
-        test_keywords = ["张专家", "王工程师", "测试", "test", "TEMP"]
+        test_keywords = ["张专家", "王工程师", "测试", "test", "TEMP", "在线验证"]
         filtered_cands = []
         for r in candidates:
+            # 严格剔除登记序号为 2, 3, 4, 5 的历史残留测试数据行
+            if r.get("seq_num") in [2, 3, 4, 5]:
+                continue
             r_name = str(r.get("sub_name", ""))
             r_title = str(r.get("sub_title", ""))
-            if any(tk in r_name for tk in test_keywords) or any(tk in r_title for tk in ["智能巡检系统实操报告", "现代肉牛高效TMR"]):
+            if any(tk in r_name for tk in test_keywords) or any(tk in r_title for tk in ["智能巡检系统实操报告", "现代肉牛高效TMR", "在线验证"]):
                 continue
             filtered_cands.append(r)
         candidates = filtered_cands

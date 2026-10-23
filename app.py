@@ -3,6 +3,11 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-22 第10次改动）：
+  0. 行业新闻资讯与投稿互动中心全面实现自动持久化存盘与台账闭环：
+     - 用户在前端提交投稿表单后，数据自动安全追加写入《行业新闻与咨询投稿登记表.xlsx》
+     - 自动转存各类格式文档附件至本地《投稿附件》目录留存归档
+     - 表单下方即时提供「📋 查看已登记投稿台账与导出」展开面板，支持大屏端实时数据预览与 Excel 原表下载
 升级亮点（2026-10-22 第8次改动）：
   1. 智慧养殖控制台全面扩充至八大核心畜禽种类：
      - 生猪养殖 (Swine)、奶牛养殖 (Dairy Cattle)、肉牛养殖 (Beef Cattle)、奶山羊养殖 (Dairy Goat)、
@@ -32,6 +37,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 import io
 import datetime
 from pathlib import Path
@@ -116,6 +123,9 @@ SHEEP_TEMPLATE_PATH = CURRENT_DIR / "肉羊生产台账采集与指标计算上�
 FUR_TEMPLATE_PATH = CURRENT_DIR / "皮用羊生产台账采集与指标计算上传模板.xlsx"
 LAYER_TEMPLATE_PATH = CURRENT_DIR / "蛋鸡生产台账采集与指标计算上传模板.xlsx"
 BROILER_TEMPLATE_PATH = CURRENT_DIR / "肉鸡生产台账采集与指标计算上传模板.xlsx"
+
+SUBMISSION_EXCEL_PATH = CURRENT_DIR / "行业新闻与咨询投稿登记表.xlsx"
+SUBMISSION_UPLOAD_DIR = CURRENT_DIR / "投稿附件"
 
 SPECIES_TEMPLATE_DICT = {
     "生猪": ("生猪生产台账采集与指标计算上传模板.xlsx", PIG_TEMPLATE_PATH),
@@ -902,10 +912,151 @@ def compute_broiler_metrics(df_raw):
     }
     return df, kpi
 
+
+# =====================================================================
+# 三点五、行业新闻与咨询投稿持久化存储引擎
+# =====================================================================
+def save_submission_to_excel(sub_data, uploaded_file=None):
+    """
+    将用户投稿表单数据安全追加写入《行业新闻与咨询投稿登记表.xlsx》
+    并自动转存附件至本地《投稿附件》目录
+    """
+    saved_filename = "无附件"
+    saved_filepath = "无"
+    if uploaded_file is not None:
+        try:
+            SUBMISSION_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+            ts_prefix = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_fname = f"{ts_prefix}_{uploaded_file.name}"
+            target_path = SUBMISSION_UPLOAD_DIR / safe_fname
+            file_bytes = uploaded_file.getvalue() if hasattr(uploaded_file, 'getvalue') else uploaded_file.read()
+            with open(target_path, "wb") as f:
+                f.write(file_bytes)
+            saved_filename = uploaded_file.name
+            saved_filepath = str(target_path.relative_to(CURRENT_DIR))
+        except Exception as e:
+            saved_filename = f"{uploaded_file.name} (保存异常: {e})"
+            saved_filepath = "异常"
+
+    headers = [
+        "登记序号", "投稿时间", "投稿人姓名", "工作单位/机构", 
+        "工作联系电话", "工作微信/QQ", "工作联系邮箱", "资讯所属领域", 
+        "新闻/文章标题", "核心摘要/咨询链接", "附件文件名称", "附件本地存储路径", 
+        "处理状态", "处理意见与对接记录"
+    ]
+
+    thin_border = Border(
+        left=Side(style='thin', color='D9D9D9'),
+        right=Side(style='thin', color='D9D9D9'),
+        top=Side(style='thin', color='D9D9D9'),
+        bottom=Side(style='thin', color='D9D9D9')
+    )
+
+    wb = None
+    if SUBMISSION_EXCEL_PATH.exists():
+        try:
+            wb = openpyxl.load_workbook(SUBMISSION_EXCEL_PATH)
+            ws = wb.active
+        except Exception:
+            wb = None
+
+    if wb is None:
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "投稿与咨询登记表"
+        ws.views.sheetView[0].showGridLines = True
+        
+        # 写入大标题行
+        ws.merge_cells("A1:N1")
+        title_cell = ws["A1"]
+        title_cell.value = "智慧牧业数字化大屏 · 行业新闻与咨询文章投稿登记台账"
+        title_cell.font = Font(name="微软雅黑", size=14, bold=True, color="1F4E79")
+        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 36
+
+        # 写入表头行
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=2, column=col_idx, value=h)
+            cell.font = Font(name="微软雅黑", size=10, bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = thin_border
+        ws.row_dimensions[2].height = 28
+        ws.freeze_panes = "A3"
+
+    # 计算自增序号
+    next_row = ws.max_row + 1
+    seq_num = max(1, next_row - 2)
+
+    # 组装数据行
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    row_values = [
+        seq_num,
+        now_str,
+        sub_data.get("sub_name", ""),
+        sub_data.get("sub_org", "行业同仁") or "行业同仁",
+        sub_data.get("sub_phone", ""),
+        sub_data.get("sub_wechat", "") or "未填写",
+        sub_data.get("sub_email", "") or "未填写",
+        sub_data.get("sub_cat", ""),
+        sub_data.get("sub_title", ""),
+        sub_data.get("sub_summary", "") or "无摘要",
+        saved_filename,
+        saved_filepath,
+        "待初审对接",
+        "大屏在线投稿自动登记入库"
+    ]
+
+    for col_idx, val in enumerate(row_values, 1):
+        cell = ws.cell(row=next_row, column=col_idx, value=val)
+        cell.font = Font(name="微软雅黑", size=10)
+        cell.border = thin_border
+        if col_idx in [1, 2, 5, 8, 13]:
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[next_row].height = 24
+
+    # 规范列宽
+    col_widths = {
+        1: 10, 2: 20, 3: 15, 4: 25, 5: 18, 6: 18, 7: 22,
+        8: 24, 9: 30, 10: 35, 11: 22, 12: 25, 13: 14, 14: 25
+    }
+    for col_idx, width in col_widths.items():
+        col_letter = get_column_letter(col_idx)
+        ws.column_dimensions[col_letter].width = width
+
+    wb.save(SUBMISSION_EXCEL_PATH)
+    
+    # 同步备份镜像至 表格与指标库/
+    try:
+        mirror_path = KPI_DIR / "行业新闻与咨询投稿登记表.xlsx"
+        wb.save(mirror_path)
+    except Exception:
+        pass
+    wb.close()
+    return seq_num, SUBMISSION_EXCEL_PATH
+
+def init_submission_excel_if_needed():
+    """初始化行业新闻与咨询投稿登记表（若文件不存在，则创建并载入初始示范记录）"""
+    if not SUBMISSION_EXCEL_PATH.exists():
+        initial_sample = {
+            "sub_name": "李尧",
+            "sub_org": "西北农林科技大学动物科技学院",
+            "sub_phone": "13679275651",
+            "sub_wechat": "wx_13679275651",
+            "sub_email": "liyao@nwafu.edu.cn",
+            "sub_cat": "💻 智慧畜牧工程与数字化档案",
+            "sub_title": "智慧牧业数字化生产档案与多畜种核心指标管理实践",
+            "sub_summary": "首套覆盖生猪、奶牛、肉牛、奶山羊、肉羊、皮用羊、蛋鸡、肉鸡八大核心畜禽法定养殖档案与指标计算引擎，实现行业新闻与生产台账双向闭环。"
+        }
+        save_submission_to_excel(initial_sample, None)
+
 # =====================================================================
 # 四、现代畜牧行业新闻资讯与投稿互动中心（支持刷新动态与全畜种咨询）
 # =====================================================================
 def render_industry_news_section(animal_type="生猪"):
+    init_submission_excel_if_needed()
     st.markdown("### 📰 现代畜牧行业新闻资讯与投稿互动中心")
     st.caption("📌 **板块定位**：实时追踪国家畜牧政策法规、八大核心畜种产业咨询要闻、市场供需行情与前沿智能养殖技术；支持从业者与科研人员登记工作联系方式并上传行业咨询新闻及技术文章。")
     
@@ -1018,7 +1169,37 @@ def render_industry_news_section(animal_type="生猪"):
                 if not sub_name or not sub_phone or not sub_title:
                     st.error("⚠️ 请完整填写必填项：投稿人姓名、工作联系电话以及文章标题！")
                 else:
-                    st.success(f"🎉 投稿成功！感谢 {sub_name}（{sub_org or '行业同仁'}）的投稿！您的文章《{sub_title}》已成功登记入库。项目团队将通过您留下的工作联系方式（电话: {sub_phone}）及时与您沟通审核与收录事宜。")
+                    sub_dict = {
+                        "sub_name": sub_name,
+                        "sub_org": sub_org or "行业同仁",
+                        "sub_phone": sub_phone,
+                        "sub_wechat": sub_wechat,
+                        "sub_email": sub_email,
+                        "sub_cat": sub_cat,
+                        "sub_title": sub_title,
+                        "sub_summary": sub_summary
+                    }
+                    seq_num, excel_path = save_submission_to_excel(sub_dict, sub_file)
+                    st.success(f"🎉 投稿成功！已自动将您的投稿数据安全写入《行业新闻与咨询投稿登记表.xlsx》（入库编号：第 {seq_num} 号）！感谢 {sub_name}（{sub_org or '行业同仁'}）的投稿，您的文章《{sub_title}》已成功登记入库。项目团队将通过您留下的工作联系方式（电话: {sub_phone}）及时与您沟通审核与收录事宜。")
+
+        # 实时投稿登记台账在线查看与导出
+        if SUBMISSION_EXCEL_PATH.exists():
+            with st.expander("📋 查看已登记投稿台账与导出 (实时自动更新)", expanded=False):
+                try:
+                    df_sub_records = pd.read_excel(SUBMISSION_EXCEL_PATH, skiprows=1)
+                    st.dataframe(df_sub_records, use_container_width=True, height=220)
+                    with open(SUBMISSION_EXCEL_PATH, "rb") as f_sub:
+                        excel_sub_bytes = f_sub.read()
+                    st.download_button(
+                        label="📥 导出完整投稿登记表 (Excel)",
+                        data=excel_sub_bytes,
+                        file_name="行业新闻与咨询投稿登记表.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                        key="download_submission_excel_btn"
+                    )
+                except Exception as e:
+                    st.caption(f"台账读取中... ({e})")
 
 # =====================================================================
 # 五、权威学术论文与科研文献中心（链接对应畜禽数据库与全畜种DOI精选）

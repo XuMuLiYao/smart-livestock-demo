@@ -2790,19 +2790,36 @@ def render_dairy_public_data_and_ai_section(animal_choice, df_calc):
     st.caption("📌 **业务定位**：严格执行《项目文档更新规则》数据真实性准入红线。数据只有经过【法定财报/公报】vs【行业协会/体系公报】vs【证券研报/Choice终端】多重交叉核验且偏差率<0.5%方可写入。涵盖国家年鉴11年(2015-2025)、生鲜乳旬报9年(2018-2026)、DHI年度公报10年(2016-2025)、发改委成本账本11年(2015-2025)及头部上市奶企8年(2018-2025)长周期时间序列。")
 
     try:
-        import sys
-        sys.path.insert(0, str(ROOT_DIR))
-        from 源代码.指标_21_奶牛公开真实生产数据与DHI基准对标 import (
-            load_dairy_public_dataset,
-            compute_dhi_percentile_benchmark,
-            predict_wood_lactation_curve,
-            evaluate_thi_stress,
-            analyze_cost_margin_sensitivity,
-            generate_dairy_llm_business_advice,
-            compare_with_enterprise_benchmarks,
-            get_cross_verification_summary,
-            get_audit_log_summary
-        )
+        # 双通道自包含弹性导入机制：优先导入本地自包含引擎，兜底回退父级工程包
+        try:
+            from dairy_benchmark_engine import (
+                load_dairy_public_dataset,
+                compute_dhi_percentile_benchmark,
+                predict_wood_lactation_curve,
+                evaluate_thi_stress,
+                analyze_cost_margin_sensitivity,
+                generate_dairy_llm_business_advice,
+                compare_with_enterprise_benchmarks,
+                get_cross_verification_summary,
+                get_audit_log_summary
+            )
+        except (ImportError, ModuleNotFoundError):
+            import sys
+            if str(ROOT_DIR) not in sys.path:
+                sys.path.insert(0, str(ROOT_DIR))
+            if str(CURRENT_DIR) not in sys.path:
+                sys.path.insert(0, str(CURRENT_DIR))
+            from 源代码.指标_21_奶牛公开真实生产数据与DHI基准对标 import (
+                load_dairy_public_dataset,
+                compute_dhi_percentile_benchmark,
+                predict_wood_lactation_curve,
+                evaluate_thi_stress,
+                analyze_cost_margin_sensitivity,
+                generate_dairy_llm_business_advice,
+                compare_with_enterprise_benchmarks,
+                get_cross_verification_summary,
+                get_audit_log_summary
+            )
     except Exception as e:
         st.error(f"⚠️ 算法模块加载提示: {e}")
         return

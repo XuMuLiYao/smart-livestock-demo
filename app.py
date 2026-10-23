@@ -3,6 +3,12 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-22 第12次改动）：
+  0. 增设多重管理员权限认证与敏感数据隐私防护机制：
+     - 双因子鉴权认证：查询验证登录设备的 MAC 地址、macOS 硬件序列号白名单与管理员账号密码
+     - 敏感数据严格隔离：投稿人姓名、联系方式（电话/微信/邮箱）、文章摘要与附件路径只对认证管理员开放
+     - 普通用户端安全防护：网页端对普通访客完全隐藏已登记投稿台账与 Excel 导出功能，显示隐私保护提示
+     - 侧边栏专属【🔐 管理员安全认证控制台】：支持设备指纹即时检测、登录鉴权、已认证状态保持与安全退出
 升级亮点（2026-10-22 第11次改动）：
   0. 增设「🎓 现代畜牧产业人才培养与全国高校动物科技学院科研咨询矩阵」专属板块：
      - 收录全国 24 所顶级与重点农林高校动物科技学院权威科研与人才培养资讯
@@ -1058,6 +1064,100 @@ def init_submission_excel_if_needed():
         }
         save_submission_to_excel(initial_sample, None)
 
+
+# =====================================================================
+# 三点六、管理员权限认证与设备硬件（MAC/序列号）安全鉴权引擎
+# =====================================================================
+def get_device_hardware_fingerprint():
+    """获取当前服务器/登录设备的物理 MAC 地址与硬件序列号"""
+    import uuid, subprocess, platform
+    mac_addr = "未知MAC"
+    try:
+        out = subprocess.check_output(['ifconfig', 'en0'], stderr=subprocess.DEVNULL, timeout=2).decode()
+        for line in out.splitlines():
+            if 'ether' in line:
+                mac_addr = line.strip().split()[1].lower()
+                break
+    except Exception:
+        pass
+    if mac_addr == "未知MAC":
+        try:
+            mac_num = uuid.getnode()
+            mac_addr = ':'.join(['{:02x}'.format((mac_num >> el) & 0xff) for el in range(0, 12, 2)][::-1]).lower()
+        except Exception:
+            mac_addr = "00:00:00:00:00:00"
+
+    serial_num = "未知序列号"
+    try:
+        out_serial = subprocess.check_output(['ioreg', '-l'], stderr=subprocess.DEVNULL, timeout=2).decode()
+        for line in out_serial.splitlines():
+            if 'IOPlatformSerialNumber' in line:
+                serial_num = line.strip().split('=')[-1].strip().replace('"', '')
+                break
+    except Exception:
+        pass
+    if serial_num == "未知序列号":
+        serial_num = platform.node() or "DEV-LOCAL"
+
+    return mac_addr, serial_num
+
+AUTHORIZED_MACS = ["ca:e9:b1:3d:ce:69", "44:13:4f:3c:f1:c5"]
+AUTHORIZED_SERIALS = ["GP71L4XYJX", "MACBOOK-AIR"]
+ADMIN_CREDENTIALS = {
+    "admin": "admin888",
+    "liyao": "nwafu2024"
+}
+
+def verify_admin_login(username, password, manual_serial=""):
+    """核验管理员登录：比对账号密码，并核验设备 MAC 地址或硬件序列号白名单"""
+    if username not in ADMIN_CREDENTIALS or ADMIN_CREDENTIALS[username] != password:
+        return False, "❌ 管理员账号或密码错误，请重新核对输入！"
+    
+    curr_mac, curr_serial = get_device_hardware_fingerprint()
+    mac_matched = curr_mac.lower() in [m.lower() for m in AUTHORIZED_MACS]
+    serial_check = (manual_serial.strip().upper() if manual_serial else curr_serial.upper())
+    serial_matched = any(s.upper() in serial_check for s in AUTHORIZED_SERIALS)
+    
+    if mac_matched or serial_matched:
+        return True, f"✅ 设备硬件指纹与身份认证成功！(设备MAC: {curr_mac} / 序列号: {curr_serial})"
+    else:
+        return False, f"⚠️ 设备硬件未授权！检测到当前设备 MAC: {curr_mac}，序列号: {curr_serial} 不在管理员预设授权白名单中。"
+
+def render_admin_sidebar_auth():
+    """在侧边栏渲染管理员鉴权控制台"""
+    st.markdown("---")
+    st.subheader("🔐 管理员安全认证控制台")
+    
+    is_admin = st.session_state.get("is_admin", False)
+    curr_mac, curr_serial = get_device_hardware_fingerprint()
+    
+    if is_admin:
+        adm_name = st.session_state.get('admin_user', 'admin')
+        st.success(f"🟢 **管理员已认证在线**\n\n- 账号: `{adm_name}`\n- 设备MAC: `{curr_mac}`\n- 序列号: `{curr_serial}`")
+        st.caption("🔒 已解锁行业投稿台账全景审核、真实姓名联系方式查阅与 Excel 完整导出权限。")
+        if st.button("🚪 退出管理员登录", use_container_width=True, key="admin_logout_btn"):
+            st.session_state["is_admin"] = False
+            st.session_state["admin_user"] = ""
+            st.rerun()
+    else:
+        with st.expander("🔑 管理员权限登录 (硬件指纹+账号密码)", expanded=False):
+            st.caption(f"💻 **当前登录设备识别**：\n- 物理MAC: `{curr_mac}`\n- 硬件序列号: `{curr_serial}`")
+            adm_user = st.text_input("管理员账号", placeholder="admin / liyao", key="sidebar_adm_user")
+            adm_pwd = st.text_input("管理员密码", type="password", placeholder="请输入管理密码", key="sidebar_adm_pwd")
+            manual_serial = st.text_input("授权设备序列号", value=curr_serial, help="系统默认自动获取本机序列号进行白名单比对", key="sidebar_manual_serial")
+            
+            if st.button("🚀 验证硬件与账号登录", use_container_width=True, key="admin_login_btn"):
+                ok, msg = verify_admin_login(adm_user.strip(), adm_pwd.strip(), manual_serial.strip())
+                if ok:
+                    st.session_state["is_admin"] = True
+                    st.session_state["admin_user"] = adm_user.strip()
+                    st.session_state["admin_mac"] = curr_mac
+                    st.session_state["admin_serial"] = curr_serial
+                    st.toast("🎉 管理员认证成功！已解锁投稿人敏感数据与台账导出权限。")
+                    st.rerun()
+                else:
+                    st.error(msg)
+
 # =====================================================================
 # 四、现代畜牧行业新闻资讯与投稿互动中心（支持刷新动态与全畜种咨询）
 # =====================================================================
@@ -1188,24 +1288,34 @@ def render_industry_news_section(animal_type="生猪"):
                     seq_num, excel_path = save_submission_to_excel(sub_dict, sub_file)
                     st.success(f"🎉 投稿成功！已自动将您的投稿数据安全写入《行业新闻与咨询投稿登记表.xlsx》（入库编号：第 {seq_num} 号）！感谢 {sub_name}（{sub_org or '行业同仁'}）的投稿，您的文章《{sub_title}》已成功登记入库。项目团队将通过您留下的工作联系方式（电话: {sub_phone}）及时与您沟通审核与收录事宜。")
 
-        # 实时投稿登记台账在线查看与导出
-        if SUBMISSION_EXCEL_PATH.exists():
-            with st.expander("📋 查看已登记投稿台账与导出 (实时自动更新)", expanded=False):
-                try:
-                    df_sub_records = pd.read_excel(SUBMISSION_EXCEL_PATH, skiprows=1)
-                    st.dataframe(df_sub_records, use_container_width=True, height=220)
-                    with open(SUBMISSION_EXCEL_PATH, "rb") as f_sub:
-                        excel_sub_bytes = f_sub.read()
-                    st.download_button(
-                        label="📥 导出完整投稿登记表 (Excel)",
-                        data=excel_sub_bytes,
-                        file_name="行业新闻与咨询投稿登记表.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        key="download_submission_excel_btn"
-                    )
-                except Exception as e:
-                    st.caption(f"台账读取中... ({e})")
+        # 权限控制：敏感数据（姓名、电话、微信、邮箱、摘要、附件路径等）只对认证管理员开放；普通用户网页完全隐藏已登记投稿台账与导出
+        is_admin = st.session_state.get("is_admin", False)
+        if is_admin:
+            if SUBMISSION_EXCEL_PATH.exists():
+                with st.expander("📋【管理员专享】已登记投稿全景台账审核与 Excel 导出 (已认证)", expanded=True):
+                    try:
+                        df_sub_records = pd.read_excel(SUBMISSION_EXCEL_PATH, skiprows=1)
+                        adm_curr = st.session_state.get('admin_user', 'admin')
+                        st.info(f"🔑 **当前以管理员（{adm_curr}）身份登录**，已解锁投稿人真实姓名、电话、微信、邮箱及文章摘要全量敏感数据（共 {len(df_sub_records)} 条入库记录）：")
+                        st.dataframe(df_sub_records, use_container_width=True, height=240)
+                        with open(SUBMISSION_EXCEL_PATH, "rb") as f_sub:
+                            excel_sub_bytes = f_sub.read()
+                        st.download_button(
+                            label="📥 导出完整未脱敏投稿登记表 (Excel)",
+                            data=excel_sub_bytes,
+                            file_name="行业新闻与咨询投稿登记表.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="download_submission_excel_btn"
+                        )
+                    except Exception as e:
+                        st.caption(f"台账读取中... ({e})")
+        else:
+            st.markdown("""
+            <div style='background-color:#161B22; border:1px solid #30363D; border-radius:6px; padding:12px 16px; margin-top:14px;'>
+                <span style='color:#8C9BAB; font-size:13px;'>🔒 <strong>敏感数据隐私保护机制生效中</strong>：为严格保护投稿行业同仁与科研人员个人隐私，避免手机、微信、邮箱等联系方式公开泄露，<strong>已登记投稿台账与导出功能已对普通访客隐藏</strong>。管理员可在左侧侧边栏【🔐 管理员安全认证控制台】通过设备硬件指纹（MAC/序列号）与密码鉴权解锁查阅与导出。</span>
+            </div>
+            """, unsafe_allow_html=True)
 
 # =====================================================================
 # 五、权威学术论文与科研文献中心（链接对应畜禽数据库与全畜种DOI精选）
@@ -1977,6 +2087,8 @@ with st.sidebar:
     - **权威行业新闻、DOI直达论文与现代产业金融**
     """)
     
+    render_admin_sidebar_auth()
+
     st.markdown("---")
     st.subheader("📬 开发者联系方式")
     st.markdown("""

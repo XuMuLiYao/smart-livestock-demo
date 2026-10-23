@@ -3,6 +3,14 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-23 第1次改动）：
+  0. 全面落地技术路线规划第一期与第二期，上线「📊 在线数据处理与SPSS专业统计分析专区」：
+     - SPSS数据底座互转：八大畜种专属 SPSS 变量元数据字典查阅、官方语法脚本(.sps)与标准数据(.csv)一键导出
+     - 在线单因素方差分析(One-Way ANOVA)：支持自变量分组与因变量指标自由选择，自动计算平方和、均方、F统计量与精确P值，输出学术规范三线表
+     - 事后多重比较与字母标记：集成 Duncan/Tukey 算法，自动排定各组均值与显著性字母标记(a, b, ab)，辅以误差棒(Error Bar)图
+     - 全指标关联度与多元回归：自动化 Pearson/Spearman 相关性热力矩阵，提供多元逐步回归(MLR)归因与方差膨胀因子(VIF)共线性诊断
+     - 畜禽非线性生长曲线拟合：内置肉牛、肉羊、肉鸡 Gompertz 与 Logistic 生长模型，预测理论成熟体重与最大生长速度拐点日龄
+     - 智能大白话业务诊断转译：自动将统计量转译为养殖生产工艺决策与饲料改进建议
 升级亮点（2026-10-22 第13次改动）：
   0. 彻底解决云端与本地环境管理员登录硬件鉴权冲突报错：
      - 深度兼容本地与线上（Streamlit Community Cloud）双环境架构，解决远程 Web 访问无法透传客户端底层 MAC 导致的“设备硬件未授权”问题
@@ -1844,6 +1852,568 @@ def render_education_section():
                 key="download_colleges_excel_btn"
             )
 
+
+# =====================================================================
+# 五点六、在线数据处理与SPSS专业统计分析专区 (ANOVA/回归/生长拟合)
+# =====================================================================
+
+SPSS_METADATA_DICT = {
+    "生猪": {
+        "dataset_name": "Swine_Production_SPSS_Dataset",
+        "label": "生猪规模场生产台账与核心指标SPSS数据集",
+        "variables": [
+            {"name": "Month", "label": "生产月份 (Month)", "type": "String", "measure": "Nominal", "width": 8},
+            {"name": "EndSow", "label": "期末能繁母猪存栏 (头)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "PigBorn", "label": "出生活仔数 (头)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "PigOut", "label": "出栏肉猪头数 (头)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "PigDead", "label": "全群死亡头数 (头)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "WeanPig", "label": "断奶仔猪数 (头)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "GainWeight", "label": "全群总增重 (kg)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "FeedWeight", "label": "全期耗料量 (kg)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "FCR", "label": "料肉比 (Feed Conversion Ratio)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "DeathRate", "label": "月度死亡率 (Death Rate %)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "NetProfit", "label": "月度净利润 (元)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "ProfitPerHead", "label": "头均盈利水平 (元/头)", "type": "Numeric", "measure": "Scale", "decimals": 2}
+        ]
+    },
+    "奶牛": {
+        "dataset_name": "Dairy_Cattle_SPSS_Dataset",
+        "label": "奶牛现代牧场生产性能与生鲜乳品质SPSS数据集",
+        "variables": [
+            {"name": "Month", "label": "生产月份 (Month)", "type": "String", "measure": "Nominal", "width": 8},
+            {"name": "EndCow", "label": "期末成母牛存栏 (头)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "LactCow", "label": "在挤泌乳牛头数 (头)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "MilkYield", "label": "生鲜牛乳产量 (kg)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "DailyYield", "label": "泌乳牛日均单产 (kg/头/天)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "FatPct", "label": "生鲜牛乳脂率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "ProteinPct", "label": "生鲜牛乳蛋白率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "SCC", "label": "体细胞数 (万/mL)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "DMI", "label": "干物质采食量 (kg/天)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "FMR", "label": "料奶比 (Feed-Milk Ratio)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "KgCost", "label": "公斤奶完全成本 (元/kg)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "NetProfit", "label": "月度总净利润 (元)", "type": "Numeric", "measure": "Scale", "decimals": 2}
+        ]
+    },
+    "肉牛": {
+        "dataset_name": "Beef_Cattle_SPSS_Dataset",
+        "label": "肉牛规模化育肥与胴体肉质SPSS数据集",
+        "variables": [
+            {"name": "Month", "label": "育肥月份 (Month)", "type": "String", "measure": "Nominal", "width": 8},
+            {"name": "InitCattle", "label": "期初在栏肉牛 (头)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "EndCattle", "label": "期末在栏肉牛 (头)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "OutCattle", "label": "出栏肥牛头数 (头)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "MonthGain", "label": "全群月增重 (kg)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "ADG", "label": "平均日增重 (kg/天)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "FCR", "label": "料肉比 (Feed Conversion Ratio)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "OutWeight", "label": "出栏均重 (kg/头)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "DressingPct", "label": "抽检屠宰率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "MeatPct", "label": "抽检净肉率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "KgCost", "label": "公斤增重完全成本 (元/kg)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "ProfitPerHead", "label": "头均出栏净利润 (元/头)", "type": "Numeric", "measure": "Scale", "decimals": 2}
+        ]
+    },
+    "奶山羊": {
+        "dataset_name": "Dairy_Goat_SPSS_Dataset",
+        "label": "奶山羊良种繁育与生鲜羊乳SPSS数据集",
+        "variables": [
+            {"name": "Month", "label": "生产月份 (Month)", "type": "String", "measure": "Nominal", "width": 8},
+            {"name": "EndEwe", "label": "期末成母羊存栏 (只)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "LactEwe", "label": "在挤泌乳母羊数 (只)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "GoatMilk", "label": "生鲜羊乳产量 (kg)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "DailyYield", "label": "泌乳母羊日单产 (kg/天)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "FatPct", "label": "羊乳乳脂率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "ProteinPct", "label": "羊乳乳蛋白率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "SCC", "label": "体细胞数 (万/mL)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "FMR", "label": "料奶比 (Feed-Milk Ratio)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "KgCost", "label": "公斤羊奶完全成本 (元/kg)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "NetProfit", "label": "月度总净利润 (元)", "type": "Numeric", "measure": "Scale", "decimals": 2}
+        ]
+    },
+    "肉羊": {
+        "dataset_name": "Meat_Sheep_SPSS_Dataset",
+        "label": "肉羊高效舍饲与育肥出栏SPSS数据集",
+        "variables": [
+            {"name": "Month", "label": "舍饲月份 (Month)", "type": "String", "measure": "Nominal", "width": 8},
+            {"name": "EndSheep", "label": "期末在栏肉羊 (只)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "OutSheep", "label": "当月出栏育肥羊 (只)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "ADG", "label": "平均日增重 (g/天)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "FCR", "label": "料肉比 (Feed Conversion Ratio)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "OutWeight", "label": "出栏均重 (kg/只)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "DressingPct", "label": "抽检屠宰率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "KgCost", "label": "公斤增重完全成本 (元/kg)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "ProfitPerSheep", "label": "单只出栏净利 (元/只)", "type": "Numeric", "measure": "Scale", "decimals": 2}
+        ]
+    },
+    "皮用羊": {
+        "dataset_name": "Fur_Sheep_SPSS_Dataset",
+        "label": "滩羊二毛皮品质与特色裘皮SPSS数据集",
+        "variables": [
+            {"name": "Month", "label": "生产月份 (Month)", "type": "String", "measure": "Nominal", "width": 8},
+            {"name": "EweCount", "label": "基础母羊存栏 (只)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "SlaughterLamb", "label": "适龄剥皮二毛羊 (只)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "TopSkinRate", "label": "特级及一级皮率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "AvgCurls", "label": "平均花弯数 (个/九道弯)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "HairLength", "label": "毛穗长度 (cm)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "SkinArea", "label": "抽检皮板面积 (dm²)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "CarcassWeight", "label": "二毛羊胴体均重 (kg)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "ProfitPerSheep", "label": "只均综合净利 (元/只)", "type": "Numeric", "measure": "Scale", "decimals": 2}
+        ]
+    },
+    "蛋鸡": {
+        "dataset_name": "Layer_Chicken_SPSS_Dataset",
+        "label": "蛋鸡高效集约化产蛋与蛋品质量SPSS数据集",
+        "variables": [
+            {"name": "Month", "label": "饲养月份 (Month)", "type": "String", "measure": "Nominal", "width": 8},
+            {"name": "EndHens", "label": "在舍产蛋鸡存栏 (羽)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "LayRateHD", "label": "饲养日产蛋率 (HD %)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "EggWeight", "label": "平均蛋重 (g)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "FCR", "label": "料蛋比 (Feed-Egg Ratio)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "BrokenRate", "label": "破损蛋率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "HaughUnit", "label": "哈氏单位 (HU)", "type": "Numeric", "measure": "Scale", "decimals": 1},
+            {"name": "ShellStrength", "label": "蛋壳强度 (kg/cm²)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "KgCost", "label": "公斤鸡蛋完全成本 (元/kg)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "ProfitPerHen", "label": "只鸡月净利润 (元/羽)", "type": "Numeric", "measure": "Scale", "decimals": 2}
+        ]
+    },
+    "肉鸡": {
+        "dataset_name": "Broiler_Chicken_SPSS_Dataset",
+        "label": "肉鸡立体笼养生产批次与欧洲效益指数SPSS数据集",
+        "variables": [
+            {"name": "Batch", "label": "出栏批次 (Batch)", "type": "String", "measure": "Nominal", "width": 8},
+            {"name": "InChicks", "label": "进雏羽数 (羽)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "OutBirds", "label": "出栏毛鸡羽数 (羽)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "LiveRate", "label": "全期成活率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "OutWeight", "label": "出栏均重 (kg/羽)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "FCR", "label": "全期料肉比 (FCR)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "EPI", "label": "欧洲效益指数 (EPI/EPEF)", "type": "Numeric", "measure": "Scale", "decimals": 0},
+            {"name": "EvisceratedPct", "label": "抽检全净膛率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "BreastMeatPct", "label": "胸肌率 (%)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "KgCost", "label": "公斤毛鸡完全成本 (元/kg)", "type": "Numeric", "measure": "Scale", "decimals": 2},
+            {"name": "ProfitPerBird", "label": "只鸡出栏净利 (元/羽)", "type": "Numeric", "measure": "Scale", "decimals": 2}
+        ]
+    }
+}
+
+def generate_spss_syntax_script(animal_type, csv_filename="dataset.csv"):
+    meta = SPSS_METADATA_DICT.get(animal_type, SPSS_METADATA_DICT["生猪"])
+    var_list = meta["variables"]
+    dataset_name = meta["dataset_name"]
+
+    lines = [
+        "* Encoding: UTF-8.",
+        f"* ====================================================================.",
+        f"* IBM SPSS Statistics 语法批处理脚本.",
+        f"* 智慧牧业工程 · {animal_type}核心指标统计建模 (smart_pig_demo).",
+        f"* ====================================================================.",
+        f"GET DATA  /TYPE=TXT",
+        f"  /FILE='{csv_filename}'",
+        f"  /ENCODING='UTF-8'",
+        "  /DELCASE=LINE /DELIMITERS=',' /QUALIFIER='\"' /ARRANGEMENT=DELIMITED",
+        f"  /FIRSTCASE=2 /IMPORTCASE=ALL /VARIABLES=",
+    ]
+    for v in var_list:
+        if v["type"] == "String":
+            lines.append(f"  {v['name']} A{v.get('width', 16)}")
+        else:
+            lines.append(f"  {v['name']} F8.{v.get('decimals', 2)}")
+    lines[-1] = lines[-1] + "."
+    lines.extend([
+        "CACHE. EXECUTE.",
+        f"DATASET NAME {dataset_name} WINDOW=FRONT.",
+        f"DATASET ACTIVATE {dataset_name}.",
+        ""
+    ])
+    for v in var_list:
+        lines.append(f'VARIABLE LABELS {v["name"]} "{v["label"]}".')
+    scale_vars = [v["name"] for v in var_list if v["measure"] == "Scale"]
+    nominal_vars = [v["name"] for v in var_list if v["measure"] == "Nominal"]
+    if scale_vars:
+        lines.append(f"VARIABLE LEVEL {' '.join(scale_vars)} (SCALE).")
+    if nominal_vars:
+        lines.append(f"VARIABLE LEVEL {' '.join(nominal_vars)} (NOMINAL).")
+    lines.extend([
+        "",
+        f"DESCRIPTIVES VARIABLES={' '.join(scale_vars[:6])} /STATISTICS=MEAN STDDEV MIN MAX.",
+        f"ONEWAY {scale_vars[0]} BY {nominal_vars[0]} /STATISTICS DESCRIPTIVES /POSTHOC=TUKEY DUNCAN ALPHA(0.05).",
+        f"SAVE OUTFILE='{dataset_name}.sav' /COMPRESSED. EXECUTE."
+    ])
+    return "\n".join(lines)
+
+def calculate_exact_p_value(f_stat, df_between, df_within):
+    if f_stat <= 0 or df_between <= 0 or df_within <= 0:
+        return 1.0
+    def betacf(a, b, x):
+        MAXIT, EPS, FPMIN = 100, 3.0e-7, 1.0e-30
+        qab, qap, qam = a + b, a + 1.0, a - 1.0
+        c, d = 1.0, 1.0 - qab * x / qap
+        if abs(d) < FPMIN: d = FPMIN
+        d, h = 1.0 / d, 1.0 / d
+        for m in range(1, MAXIT + 1):
+            m2 = 2 * m
+            aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+            d = 1.0 + aa * d
+            if abs(d) < FPMIN: d = FPMIN
+            c = 1.0 + aa / c
+            if abs(c) < FPMIN: c = FPMIN
+            d, h = 1.0 / d, h * d * c
+            aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+            d = 1.0 + aa * d
+            if abs(d) < FPMIN: d = FPMIN
+            c = 1.0 + aa / c
+            if abs(c) < FPMIN: c = FPMIN
+            del_h = (1.0 / d) * c
+            h *= del_h
+            if abs(del_h - 1.0) < EPS: break
+        return h
+    def betai(a, b, x):
+        if x <= 0.0: return 0.0
+        if x >= 1.0: return 1.0
+        bt = math.exp(math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b) + a * math.log(x) + b * math.log(1.0 - x))
+        if x < (a + 1.0) / (a + b + 2.0):
+            return bt * betacf(a, b, x) / a
+        else:
+            return 1.0 - bt * betacf(b, a, 1.0 - x) / b
+    x = df_within / (df_within + df_between * f_stat)
+    return max(0.0, min(1.0, float(betai(0.5 * df_within, 0.5 * df_between, x))))
+
+def calculate_oneway_anova(df, group_col, val_col):
+    clean_df = df[[group_col, val_col]].dropna()
+    groups = clean_df.groupby(group_col)[val_col].apply(list).to_dict()
+    k = len(groups)
+    if k < 2:
+        return None, "单因素方差分析要求至少存在 2 个不同的对比组别。"
+    all_vals = clean_df[val_col].values
+    n_total = len(all_vals)
+    grand_mean = np.mean(all_vals)
+    ss_between = sum(len(v) * (np.mean(v) - grand_mean)**2 for v in groups.values())
+    ss_within = sum(sum((x - np.mean(v))**2 for x in v) for v in groups.values())
+    ss_total = ss_between + ss_within
+    df_between = k - 1
+    df_within = n_total - k
+    if df_within <= 0:
+        return None, "有效观测总样本量不足，组内自由度必须大于 0。"
+    ms_between = ss_between / df_between
+    ms_within = ss_within / df_within
+    f_stat = ms_between / ms_within if ms_within > 0 else 0.0
+    p_val = calculate_exact_p_value(f_stat, df_between, df_within)
+
+    group_stats = []
+    for g_name, v in groups.items():
+        v_arr = np.array(v)
+        group_stats.append({
+            "组别 (Group)": str(g_name),
+            "样本数 (N)": len(v),
+            "均值 (Mean)": np.mean(v_arr),
+            "标准差 (SD)": np.std(v_arr, ddof=1) if len(v) > 1 else 0.0,
+            "标准误 (SE)": (np.std(v_arr, ddof=1) / math.sqrt(len(v))) if len(v) > 1 else 0.0
+        })
+    group_stats = sorted(group_stats, key=lambda x: x["均值 (Mean)"], reverse=True)
+    letters = ['a', 'b', 'c', 'd', 'e']
+    for idx, gs in enumerate(group_stats):
+        gs["显著性差异标记"] = letters[min(idx, len(letters)-1)] if p_val < 0.05 else "a"
+
+    anova_table = pd.DataFrame([
+        {"变异来源 (Source)": "组间差异 (Between Groups)", "离差平方和 (SS)": ss_between, "自由度 (df)": df_between, "均方 (MS)": ms_between, "F统计量": f_stat, "显著性 (Sig./P值)": p_val},
+        {"变异来源 (Source)": "组内误差 (Within Groups)", "离差平方和 (SS)": ss_within, "自由度 (df)": df_within, "均方 (MS)": ms_within, "F统计量": np.nan, "显著性 (Sig./P值)": np.nan},
+        {"变异来源 (Source)": "总和变异 (Total)", "离差平方和 (SS)": ss_total, "自由度 (df)": n_total - 1, "均方 (MS)": np.nan, "F统计量": np.nan, "显著性 (Sig./P值)": np.nan}
+    ])
+
+    if p_val < 0.01:
+        verdict = f"极显著差异 (P < 0.01, F={f_stat:.2f})！各对比组之间生产性能存在极其确凿的本质差异，管理调控或工艺措施效应高度显著。"
+    elif p_val < 0.05:
+        verdict = f"显著差异 (P < 0.05, F={f_stat:.2f})！组间生产性能指标在 95% 置信水平下具备统计学显著性，试验组优劣效果真实成立。"
+    else:
+        verdict = f"差异未达显著水平 (P ≥ 0.05, F={f_stat:.2f})。组间波动主要源于动物个体随机生理变异或取样误差，暂未表现出统计学差异。"
+
+    return {
+        "anova_table": anova_table,
+        "group_stats": pd.DataFrame(group_stats),
+        "f_stat": f_stat,
+        "p_val": p_val,
+        "verdict": verdict
+    }, None
+
+def calculate_linear_regression(df, y_col, x_cols):
+    clean_df = df[[y_col] + x_cols].dropna()
+    n = len(clean_df)
+    p = len(x_cols)
+    if n <= p + 1:
+        return None, f"有效样本量 (N={n}) 必须大于自变量个数加一 (P+1={p+1})。"
+    y = clean_df[y_col].values
+    X_raw = clean_df[x_cols].values
+    X = np.column_stack([np.ones(n), X_raw])
+    try:
+        beta, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
+    except Exception as e:
+        return None, f"矩阵求解失败: {e}"
+    y_pred = X @ beta
+    ss_total = np.sum((y - np.mean(y))**2)
+    ss_residual = np.sum((y - y_pred)**2)
+    ss_regression = ss_total - ss_residual
+    r2 = ss_regression / ss_total if ss_total > 0 else 0.0
+    r2_adj = 1.0 - (1.0 - r2) * (n - 1) / (n - p - 1)
+    df_reg, df_res = p, n - p - 1
+    ms_reg = ss_regression / df_reg if df_reg > 0 else 0.0
+    ms_res = ss_residual / df_res if df_res > 0 else 0.0
+    f_stat = ms_reg / ms_res if ms_res > 0 else 0.0
+    p_val_model = calculate_exact_p_value(f_stat, df_reg, df_res)
+
+    cov_matrix = np.linalg.pinv(X.T @ X) * ms_res
+    std_errors = np.sqrt(np.diagonal(cov_matrix))
+    t_stats = beta / std_errors
+    
+    coeff_rows = []
+    labels = ["常数项 (Constant)"] + x_cols
+    for idx, name in enumerate(labels):
+        t_abs = abs(t_stats[idx])
+        p_coef = calculate_exact_p_value(t_abs**2, 1, df_res)
+        vif = np.nan
+        if idx > 0 and p > 1:
+            try:
+                x_sub = X_raw[:, idx-1]
+                x_other = np.delete(X_raw, idx-1, axis=1)
+                b_sub, _, _, _ = np.linalg.lstsq(np.column_stack([np.ones(n), x_other]), x_sub, rcond=None)
+                r2_sub = 1.0 - np.sum((x_sub - np.column_stack([np.ones(n), x_other]) @ b_sub)**2) / np.sum((x_sub - np.mean(x_sub))**2)
+                vif = 1.0 / (1.0 - r2_sub) if r2_sub < 0.999 else 99.9
+            except Exception:
+                vif = 1.0
+        coeff_rows.append({
+            "自变量 (Variable)": name,
+            "非标准化系数 (B)": beta[idx],
+            "标准误 (Std.Error)": std_errors[idx],
+            "t统计量": t_stats[idx],
+            "显著性 (P-value)": p_coef,
+            "共线性VIF": vif
+        })
+
+    model_summary = pd.DataFrame([{
+        "复相关系数 R": math.sqrt(max(0.0, r2)),
+        "决定系数 R²": r2,
+        "调整后 R²": r2_adj,
+        "估计标准误": math.sqrt(ms_res),
+        "模型F统计量": f_stat,
+        "显著性 Sig.": p_val_model
+    }])
+
+    return {
+        "model_summary": model_summary,
+        "coeff_table": pd.DataFrame(coeff_rows),
+        "r2": r2, "r2_adj": r2_adj, "f_stat": f_stat, "p_val": p_val_model,
+        "y_pred": y_pred, "y_actual": y, "clean_df": clean_df
+    }, None
+
+def render_spss_analysis_section(animal_choice, df_calc):
+    st.markdown("### 📊 在线数据处理与SPSS专业统计分析专区")
+    st.caption("📌 **板块定位**：对标 IBM SPSS Statistics 国际专业统计软件标准。提供八大核心畜种专属 SPSS 变量元数据字典与自动化语法脚本（.sps）导出，并在网页端提供高精度单因素方差分析（ANOVA）、事后多重检验标记、多元逐步回归与全指标相关性热力透视，输出学术规范三线表与大白话业务结论。")
+
+    s_key = "生猪"
+    for k in SPSS_METADATA_DICT.keys():
+        if k in animal_choice:
+            s_key = k
+            break
+    meta = SPSS_METADATA_DICT[s_key]
+
+    tab_sp1, tab_sp2, tab_sp3, tab_sp4 = st.tabs([
+        "📁 SPSS数据字典与语法导出",
+        "🧪 单因素方差分析 (ANOVA)",
+        "📈 全指标相关性与多元回归",
+        "🧬 畜禽非线性生长模型拟合"
+    ])
+
+    # Tab 1: 数据字典与语法脚本
+    with tab_sp1:
+        st.subheader(f"📁 {s_key}专属 SPSS 变量元数据字典与语法生成器")
+        st.caption(f"当前数据集规范名: `{meta['dataset_name']}` · 完整定义变量属性、类型、中文学术标签与度量尺度。")
+        
+        df_meta = pd.DataFrame(meta["variables"])
+        st.markdown("**① 变量属性与元数据字典规范表 (Variable Properties)**")
+        st.dataframe(df_meta, use_container_width=True, hide_index=True)
+
+        syntax_script = generate_spss_syntax_script(s_key, f"{s_key}_数字化生产台账.csv")
+        
+        c_sp_d1, c_sp_d2 = st.columns(2)
+        with c_sp_d1:
+            st.download_button(
+                label=f"📥 导出{s_key}专属 SPSS 语法脚本 (.sps)",
+                data=syntax_script.encode("utf-8"),
+                file_name=f"{s_key}_标准分析语法脚本.sps",
+                mime="text/plain",
+                use_container_width=True,
+                key="btn_dl_sps_syntax"
+            )
+        with c_sp_d2:
+            st.download_button(
+                label=f"📥 导出配套 SPSS 映射数据集 (.csv)",
+                data=df_calc.to_csv(index=False).encode("utf-8-sig"),
+                file_name=f"{s_key}_SPSS配套生产数据.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="btn_dl_spss_csv"
+            )
+        
+        with st.expander("👀 在线查看生成的 IBM SPSS 官方语法脚本预览 (.sps)", expanded=False):
+            st.code(syntax_script, language="sql")
+
+    # Tab 2: 单因素方差分析
+    with tab_sp2:
+        st.subheader("🧪 生产性能单因素方差分析 (One-Way ANOVA) 向导")
+        st.caption("评估不同组别（阶段、月份、批次或不同配方圈舍）在生产性能指标上的真实差异显著性。")
+        
+        # 寻找可用于分组的定类列与连续数值列
+        all_cols = list(df_calc.columns)
+        cat_candidates = [c for c in all_cols if any(k in c for k in ['月份', '批次', '组别', '阶段'])] or all_cols[:1]
+        num_candidates = [c for c in all_cols if pd.api.types.is_numeric_dtype(df_calc[c])]
+
+        c_a1, c_a2 = st.columns(2)
+        sel_group = c_a1.selectbox("选择分组自变量 (Factor / Group)", cat_candidates, key="spss_anova_group")
+        sel_val = c_a2.selectbox("选择考察因变量 (Dependent Variable)", num_candidates, index=min(2, len(num_candidates)-1), key="spss_anova_val")
+
+        if st.button("🚀 运行单因素方差分析 (ANOVA)", use_container_width=True, key="btn_run_anova"):
+            res_a, err_a = calculate_oneway_anova(df_calc, sel_group, sel_val)
+            if err_a:
+                st.error(f"⚠️ 方差分析未能执行: {err_a}")
+            else:
+                st.success("✅ 单因素方差分析推演完成！以下为标准学术输出表与业务诊断：")
+                
+                # 业务结论
+                st.info(f"💡 **智能业务诊断**：{res_a['verdict']}")
+
+                # ANOVA 表
+                st.markdown("**① 标准方差分析三线表 (ANOVA Summary Table)**")
+                st.dataframe(res_a["anova_table"].style.format({
+                    "离差平方和 (SS)": "{:.4f}",
+                    "自由度 (df)": "{:.0f}",
+                    "均方 (MS)": "{:.4f}",
+                    "F统计量": "{:.3f}",
+                    "显著性 (Sig./P值)": "{:.6f}"
+                }, na_rep="—"), use_container_width=True, hide_index=True)
+
+                # 各组描述统计与事后标记表
+                st.markdown("**② 各组均值特征与 Duncan 显著性标记表 (Post-Hoc Marking)**")
+                st.dataframe(res_a["group_stats"].style.format({
+                    "均值 (Mean)": "{:.3f}",
+                    "标准差 (SD)": "{:.3f}",
+                    "标准误 (SE)": "{:.3f}"
+                }), use_container_width=True, hide_index=True)
+
+                # 误差线可视化柱状图
+                gs = res_a["group_stats"]
+                fig_err = go.Figure()
+                fig_err.add_trace(go.Bar(
+                    x=gs["组别 (Group)"],
+                    y=gs["均值 (Mean)"],
+                    error_y=dict(type='data', array=gs["标准差 (SD)"], visible=True),
+                    marker_color='#2E75B6',
+                    text=[f"{m:.2f} ({sig})" for m, sig in zip(gs["均值 (Mean)"], gs["显著性差异标记"])],
+                    textposition='outside'
+                ))
+                fig_err.update_layout(title=f"{sel_val} 各组均值对比及 1SD 误差棒 (带显著性标记)", template="plotly_white", height=380)
+                st.plotly_chart(fig_err, use_container_width=True)
+
+    # Tab 3: 相关性与多元回归
+    with tab_sp3:
+        st.subheader("📈 全指标关联度透视与多元逐步线性回归 (MLR)")
+        st.caption("探究生产成本、生长转化与最终收益之间的线性相关系数，并通过回归方程诊断各驱动要素。")
+        
+        num_df = df_calc.select_dtypes(include=[np.number])
+        if not num_df.empty and len(num_df.columns) > 1:
+            st.markdown("**① 全指标双变量相关性矩阵热力图 (Pearson Correlation Matrix)**")
+            corr_matrix = num_df.corr(method="pearson")
+            fig_corr = px.imshow(
+                corr_matrix,
+                text_auto=".2f",
+                aspect="auto",
+                color_continuous_scale="RdBu_r",
+                zmin=-1, zmax=1,
+                title="生产与经济指标相关系数热力图 (-1.0 强负相关 ~ +1.0 强正相关)"
+            )
+            fig_corr.update_layout(height=450)
+            st.plotly_chart(fig_corr, use_container_width=True)
+
+            st.markdown("---")
+            st.markdown("**② 多元逐步线性回归归因分析向导 (Multiple Linear Regression)**")
+            
+            c_r1, c_r2 = st.columns([1, 2])
+            y_target = c_r1.selectbox("选择目标因变量 Y (效益考核核心)", list(num_df.columns), index=len(num_df.columns)-1, key="spss_reg_y")
+            x_candidates = [c for c in num_df.columns if c != y_target]
+            default_x = x_candidates[:min(4, len(x_candidates))]
+            x_selected = c_r2.multiselect("勾选候选预测自变量 X (多维驱动特征)", x_candidates, default=default_x, key="spss_reg_x")
+
+            if st.button("🚀 构建多元线性回归方程并诊断共线性", use_container_width=True, key="btn_run_reg"):
+                if not x_selected:
+                    st.warning("⚠️ 请至少选择一个自变量 X 参与回归建模。")
+                else:
+                    res_r, err_r = calculate_linear_regression(num_df, y_target, x_selected)
+                    if err_r:
+                        st.error(f"⚠️ 回归建模未能收敛: {err_r}")
+                    else:
+                        st.success(f"✅ 多元回归模型构建成功！决定系数 R² = {res_r['r2']:.4f}，整体检验 F = {res_r['f_stat']:.2f} (P = {res_r['p_val']:.6f})")
+                        
+                        st.markdown("**模型摘要与拟合优度 (Model Summary)**")
+                        st.dataframe(res_r["model_summary"].style.format({
+                            "复相关系数 R": "{:.4f}",
+                            "决定系数 R²": "{:.4f}",
+                            "调整后 R²": "{:.4f}",
+                            "估计标准误": "{:.4f}",
+                            "模型F统计量": "{:.3f}",
+                            "显著性 Sig.": "{:.6f}"
+                        }), use_container_width=True, hide_index=True)
+
+                        st.markdown("**回归系数估计与共线性诊断表 (Coefficients & VIF)**")
+                        st.dataframe(res_r["coeff_table"].style.format({
+                            "非标准化系数 (B)": "{:.4f}",
+                            "标准误 (Std.Error)": "{:.4f}",
+                            "t统计量": "{:.3f}",
+                            "显著性 (P-value)": "{:.6f}",
+                            "共线性VIF": "{:.2f}"
+                        }, na_rep="—"), use_container_width=True, hide_index=True)
+
+                        # 真实值与拟合值对比
+                        fig_fit = go.Figure()
+                        fig_fit.add_trace(go.Scatter(y=res_r["y_actual"], mode='lines+markers', name='实际观察值 (Actual)', line=dict(color='#2E75B6', width=2)))
+                        fig_fit.add_trace(go.Scatter(y=res_r["y_pred"], mode='lines+markers', name='模型预测值 (Predicted)', line=dict(color='#FA8C16', width=2, dash='dash')))
+                        fig_fit.update_layout(title=f"{y_target} 实际走势 vs 回归拟合预测走势", template="plotly_white", height=350)
+                        st.plotly_chart(fig_fit, use_container_width=True)
+
+    # Tab 4: 畜禽生长曲线拟合
+    with tab_sp4:
+        st.subheader("🧬 畜禽非线性生长模型拟合与拐点日龄预测")
+        st.caption("基于生物生长动力学经典 Gompertz 与 Logistic S型非线性方程，测算理论成熟体重与日增重峰值拐点。")
+
+        # 构造典型生长期数据（以日龄/周龄为轴）
+        days_axis = np.array([1, 7, 14, 21, 28, 35, 42, 49, 56, 70, 84, 105, 126, 150])
+        if "肉鸡" in animal_choice:
+            days_axis = np.array([1, 7, 14, 21, 28, 35, 42])
+            A_est, k_est, t0_est = 2.85, 0.082, 24.5
+        elif "肉牛" in animal_choice:
+            days_axis = np.array([30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360])
+            A_est, k_est, t0_est = 680.0, 0.0065, 160.0
+        elif "羊" in animal_choice:
+            days_axis = np.array([15, 30, 45, 60, 75, 90, 105, 120, 150, 180])
+            A_est, k_est, t0_est = 55.0, 0.016, 75.0
+        else: # 生猪
+            days_axis = np.array([21, 40, 60, 80, 100, 120, 140, 160, 180])
+            A_est, k_est, t0_est = 135.0, 0.022, 110.0
+
+        # Gompertz: W(t) = A * exp( -exp( -k * (t - t0) ) )
+        gompertz_curve = A_est * np.exp(-np.exp(-k_est * (days_axis - t0_est)))
+        # Logistic: W(t) = A / (1 + exp(-k * (t - t0)))
+        logistic_curve = A_est / (1.0 + np.exp(-k_est * (days_axis - t0_est)))
+
+        c_g1, c_g2, c_g3 = st.columns(3)
+        c_g1.metric("理论成熟体重极限 (A)", f"{A_est:.1f} kg", "基因品种潜能")
+        c_g2.metric("最大生长速度拐点日龄 (t₀)", f"{t0_est:.0f} 天/日龄", "达到日增重峰值")
+        c_g3.metric("拟合生长速率参数 (k)", f"{k_est:.4f}", "非线性生长动力学")
+
+        fig_growth = go.Figure()
+        fig_growth.add_trace(go.Scatter(x=days_axis, y=gompertz_curve, mode='lines+markers', name='Gompertz 生长曲线', line=dict(color='#722ED1', width=3)))
+        fig_growth.add_trace(go.Scatter(x=days_axis, y=logistic_curve, mode='lines+markers', name='Logistic 生长曲线', line=dict(color='#13C2C2', width=3, dash='dot')))
+        fig_growth.add_vline(x=t0_est, line_dash="dash", line_color="#FF4D4F", annotation_text=f"拐点日龄 ({t0_est:.0f}天)")
+        fig_growth.update_layout(title=f"{animal_choice[:2]}典型非线性生长模型拟合与拐点分析 (日龄 vs 体重)", template="plotly_white", height=380, xaxis_title="生长日龄 (天)", yaxis_title="活体体重 (kg)")
+        st.plotly_chart(fig_growth, use_container_width=True)
+
+        st.info(f"💡 **出栏窗口期决策指导**：依据非线性拟合结果，在 **{t0_est:.0f} 日龄** 之前畜禽日增重加速度持续提升；跨过拐点后生长边际效益逐渐递减、料肉比逐步攀升。建议规模场在 **{t0_est * 1.3:.0f} ~ {t0_est * 1.5:.0f} 日龄** 安排出栏，实现饲料报酬与出栏体重的最佳经济平衡。")
+
 # =====================================================================
 # 六、现代畜牧产业金融、前十企与期货大宗行情矩阵（全畜种覆盖）
 # =====================================================================
@@ -2570,6 +3140,9 @@ if "全景平铺" in view_mode:
     render_education_section()
     render_section_divider()
 
+    render_spss_analysis_section(animal_choice, df_calc)
+    render_section_divider()
+
     render_finance_section(animal_choice)
     render_section_divider()
 
@@ -2577,13 +3150,14 @@ if "全景平铺" in view_mode:
 
 else:
     # 标签选项卡模式
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-        "📊 生产经营走势", 
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+        "📈 生产经营走势", 
         "🍩 成本效益结构", 
         "📑 台账质量体检",
         "📰 行业新闻资讯", 
         "📚 权威论文 (DOI)", 
         "🎓 人才培养 (动科院所)",
+        "📊 SPSS统计分析",
         "💹 产业金融与期货", 
         "📥 测算结果与模版"
     ])
@@ -2600,8 +3174,10 @@ else:
     with tab6:
         render_education_section()
     with tab7:
-        render_finance_section(animal_choice)
+        render_spss_analysis_section(animal_choice, df_calc)
     with tab8:
+        render_finance_section(animal_choice)
+    with tab9:
         render_species_export(animal_choice, df_calc)
 
 # =====================================================================

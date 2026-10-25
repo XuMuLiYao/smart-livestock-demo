@@ -1,0 +1,59 @@
+name: Streamlit App Keep-Alive & Auto-Wakeup
+
+on:
+  schedule:
+    # 每 4 小时自动执行一次保活与休眠唤醒巡检
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  wake-up-streamlit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Streamlit Health & Entry Endpoints
+        run: |
+          echo "Pinging smartpastoral.streamlit.app health endpoint..."
+          curl -s -L -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" "https://smartpastoral.streamlit.app/_stcore/health" || true
+          curl -s -L -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" "https://smartpastoral.streamlit.app/?embed=true" > /tmp/st_page.html || true
+          curl -s -L -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" "https://smartpastoral.com/" > /dev/null || true
+
+      - name: Headless Browser Auto-Wakeup Check
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run Playwright Wake-Up If Sleeping
+        run: |
+          pip install playwright
+          playwright install chromium
+          python - << 'EOF'
+          import asyncio
+          from playwright.async_api import async_playwright
+
+          async def wake_app():
+              async with async_playwright() as p:
+                  browser = await p.chromium.launch(headless=True)
+                  page = await browser.new_page()
+                  try:
+                      await page.goto("https://smartpastoral.streamlit.app/", timeout=60000)
+                      await page.wait_for_timeout(5000)
+                      # 检测是否存在休眠唤醒按钮并自动点击
+                      btn = page.locator("button:has-text('Yes, get this app back up')").or_(
+                            page.locator("button:has-text('wake')")).or_(
+                            page.locator("[data-testid='wakeup-button']"))
+                      if await btn.count() > 0:
+                          print("Detected sleeping Streamlit app! Clicking wake-up button...")
+                          await btn.first.click()
+                          await page.wait_for_timeout(15000)
+                          print("Wake-up triggered successfully!")
+                      else:
+                          print("Streamlit app is already awake and healthy!")
+                  except Exception as e:
+                      print("Wake check finished with notice:", e)
+                  finally:
+                      await browser.close()
+
+          asyncio.run(wake_app())
+          EOF

@@ -3,6 +3,11 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-25 第2次改动）：
+  0. 彻底解决 Streamlit Cloud 云端休眠（This app has gone to sleep due to inactivity）问题，构建三层自动唤醒与全天候保活机制 (V3.16)：
+     - 部署 GitHub Actions 云端自动巡检与无头浏览器唤醒工作流（.github/workflows/keep_alive.yml），每 4 小时自动探测并在休眠时自动点击“Yes, get this app back up!”按钮唤醒容器
+     - 升级前端入口 index.html，内置预唤醒脉冲、每 4 分钟自动心跳保活请求（/_stcore/health）以及右下角「⚡ 休眠一键唤醒 / 🔄 刷新看板」快捷悬浮工具条
+     - 在 app.py 内置前端健康心跳保活脚本，防止长时浏览期间会话超时休眠
 升级亮点（2026-10-25 第1次改动）：
   0. 全面排查并彻底解决网页端统计分析与组件交互报错问题 (V3.15)：
      - 修复 SPSS 在线多元线性回归与方差分析 P 值积分计算缺少顶层 math 模块导入导致的 NameError: name 'math' is not defined 报错

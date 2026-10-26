@@ -123,7 +123,7 @@
 <body>
   <div id="loading-screen">
     <div class="spinner"></div>
-    <div class="loading-title">正在连接并唤醒智慧畜牧数字化管理系统...</div>
+    <div class="loading-title">正在加载智慧畜牧数字化管理系统...</div>
     <div class="loading-sub">smartpastoral.com · 智慧牧业工程 · 李尧 2024010983</div>
     <div style="font-size: 11px; color: #8C9BAB; margin-top: 8px; text-align: center; max-width: 85%; line-height: 1.4;">
       中国西北农林科技大学动物科技学院 · 仅供交流学习 · QQ: 3100785036 · WeChat: 13679275651
@@ -132,9 +132,9 @@
 
   <!-- 云端休眠唤醒与刷新辅助悬浮条 -->
   <div id="wakeup-bar" class="wakeup-helper-bar" style="opacity: 0.78;">
-    <span>🟢 云端自动保活中</span>
+    <span>🟢 智慧牧业云端大屏</span>
     <button class="wakeup-btn" onclick="reloadFrame()" title="重新加载内嵌看板">🔄 刷新看板</button>
-    <a class="wakeup-btn" href="https://smartpastoral.streamlit.app/" target="_blank" rel="noopener" onclick="scheduleReload()" title="若页面提示 gone to sleep，点击此按钮在新窗口一键唤醒">⚡ 休眠一键唤醒</a>
+    <a class="wakeup-btn" href="https://smartpastoral.streamlit.app/" target="_blank" rel="noopener" onclick="scheduleReload()" title="若页面休眠或加载缓慢，点击此按钮在新窗口直达并唤醒">⚡ 直达/唤醒云端</a>
     <span class="close-helper" onclick="document.getElementById('wakeup-bar').style.display='none'" title="隐藏悬浮条">×</span>
   </div>
 
@@ -146,15 +146,8 @@
   </iframe>
 
   <script>
-    const STREAMLIT_BASE = "https://smartpastoral.streamlit.app";
-
-    // 预唤醒与周期性心跳保活请求，防止 Streamlit Cloud 因长时间无活动进入休眠
-    function pingStreamlitCloud() {
-      try {
-        fetch(STREAMLIT_BASE + "/_stcore/health", { mode: "no-cors", cache: "no-store" }).catch(function(){});
-        fetch(STREAMLIT_BASE + "/?embed=true&_hb=" + Date.now(), { mode: "no-cors", cache: "no-store" }).catch(function(){});
-      } catch (e) {}
-    }
+    const STREAMLIT_EMBED_URL = "https://smartpastoral.streamlit.app/?embed=true";
+    const STREAMLIT_HEALTH_URL = "https://smartpastoral.streamlit.app/_stcore/health";
 
     function hideLoading() {
       const loader = document.getElementById('loading-screen');
@@ -167,24 +160,26 @@
     }
 
     function reloadFrame() {
-      pingStreamlitCloud();
       const frame = document.getElementById('streamlit-frame');
       if (frame) {
-        frame.src = STREAMLIT_BASE + "/?embed=true&_t=" + Date.now();
+        // 保持标准纯净 ?embed=true 地址，避免附加非标准查询参数触发 Streamlit Cloud 代理 499 错误
+        frame.src = STREAMLIT_EMBED_URL;
       }
     }
 
     function scheduleReload() {
-      setTimeout(reloadFrame, 8000);
-      setTimeout(reloadFrame, 18000);
+      setTimeout(reloadFrame, 10000);
     }
 
-    // 页面加载立即发送唤醒脉冲，随后每 4 分钟自动发送心跳保活
-    pingStreamlitCloud();
-    setInterval(pingStreamlitCloud, 240000);
+    // 仅在页面稳定加载 5 分钟后启动低频健康心跳，避免在 iframe 初始握手期产生并发冲突导致 Code 499
+    setInterval(function() {
+      try {
+        fetch(STREAMLIT_HEALTH_URL, { mode: "no-cors", cache: "no-store" }).catch(function(){});
+      } catch (e) {}
+    }, 300000);
 
     // 超时兜底隐藏加载动画
-    setTimeout(hideLoading, 4500);
+    setTimeout(hideLoading, 5000);
   </script>
 </body>
 </html>

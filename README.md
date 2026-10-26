@@ -4,6 +4,15 @@
 
 ---
 
+## 🌟 核心功能亮点 (V3.17 全新升级 - 2026-10-25 第3次改动)
+
+0. **🛡️ 彻底解决云端与本地网页报错（Streamlit 跨版本容器宽度兼容、iframe Code 499 与切换畜种 KeyError）(V3.17 核心升级)**：
+   - **构建跨版本自适应容器宽度引擎 (`_ST_WIDTH_KWARG`)**：自动检测运行环境的 Streamlit 版本，在本地新版（`>=1.49`）自动采用 `width="stretch"`，在 Streamlit Community Cloud 既有容器环境（`1.35~1.48`）自动回退为 `use_container_width=True`，彻底根除云端因不支持 `width="stretch"` 抛出的 `TypeError: button() got an unexpected keyword argument 'width'` 与 `StreamlitAPIException` 页面崩溃报错；
+   - **修复前端域名入口 (`index.html`) 的 `Error: Unknown error Code: 499` 报错**：移除页面加载 0ms 时与内嵌 `iframe` 发生握手竞争的跨域 `no-cors` 请求及非标准查询参数（`&_hb`、`&_t`），改为页面稳定运行 5 分钟后再启动低频健康保活，确保 `smartpastoral.com` 内嵌大屏握手 100% 顺畅；
+   - **根治切换畜种时 SPSS 统计专区 `KeyError: 'spss_anova_group'` 与奇异矩阵警告**：在单因素方差分析、多元线性回归与 PCA 降维组件渲染前自动校验并同步 `st.session_state` 候选列合法性，自动剔除零方差常量列并提供标准误安全除零保护。
+
+---
+
 ## 🌟 核心功能亮点 (V3.16 全新升级 - 2026-10-25 第2次改动)
 
 0. **⚡ 彻底解决云端休眠提示（`This app has gone to sleep due to inactivity`），构建三层全天候自动唤醒与防休眠保活体系 (V3.16 核心升级)**：

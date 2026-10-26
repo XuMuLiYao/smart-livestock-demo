@@ -3,22 +3,6 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
-升级亮点（2026-10-25 第3次改动）：
-  0. 彻底解决云端与本地双环境网页报错（Streamlit 版本兼容、iframe Code 499 与切换畜种 KeyError）(V3.17)：
-     - 构建跨版本自适应容器宽度引擎（_ST_WIDTH_KWARG）：自动识别运行环境 Streamlit 版本，在 Streamlit 1.49+ 使用 width="stretch"，在云端旧版容器（1.35~1.48）自动回退使用 use_container_width=True，彻底消除云端 TypeError: button() got an unexpected keyword argument 'width' 与 StreamlitAPIException 崩溃报错
-     - 根治切换畜种时 SPSS 统计专区 KeyError 报错：为 SPSS 方差分析、多元回归、PCA 降维与 K-Means 聚类的全部交互组件注入畜种专属动态键（_{s_key}），彻底消除切换畜禽品种时因候选指标列表变更引发的 KeyError: 'spss_anova_group' 状态冲突
-     - 修复前端域名入口 index.html 的 Error: Unknown error Code: 499 报错：移除页面初始加载毫秒级并发的跨域 no-cors 请求与非标准查询参数（&_hb / &_t），确保内嵌 Streamlit Cloud 握手零冲突
-升级亮点（2026-10-25 第2次改动）：
-  0. 彻底解决 Streamlit Cloud 云端休眠（This app has gone to sleep due to inactivity）问题，构建三层自动唤醒与全天候保活机制 (V3.16)：
-     - 部署 GitHub Actions 云端自动巡检与无头浏览器唤醒工作流（.github/workflows/keep_alive.yml），每 4 小时自动探测并在休眠时自动点击“Yes, get this app back up!”按钮唤醒容器
-     - 升级前端入口 index.html，内置预唤醒脉冲、每 4 分钟自动心跳保活请求（/_stcore/health）以及右下角「⚡ 休眠一键唤醒 / 🔄 刷新看板」快捷悬浮工具条
-     - 在 app.py 内置前端健康心跳保活脚本，防止长时浏览期间会话超时休眠
-升级亮点（2026-10-25 第1次改动）：
-  0. 全面排查并彻底解决网页端统计分析与组件交互报错问题 (V3.15)：
-     - 修复 SPSS 在线多元线性回归与方差分析 P 值积分计算缺少顶层 math 模块导入导致的 NameError: name 'math' is not defined 报错
-     - 修复单因素方差分析（One-Way ANOVA）默认以单月/单批次分组时因每组仅1条记录导致的“组内自由度必须大于0”报错，自动注入季度阶段（Q1-Q4）与上下半年标准对比分组并内置智能归并容错
-     - 修复奶牛指标计算引擎 compute_cow_metrics 中默认生鲜乳单价参数错置入 aliases 列表的问题
-     - 增补 requirements.txt 中 Jinja2 与 numpy 显式依赖声明，保障云端与本地表格样式渲染及全链路零报错运行
 升级亮点（2026-10-23 第12次改动）：
   0. 坚决保留投稿Excel规范结构与示范样本行，物理清除登记序号2、3、4、5等历史测试残留数据 (V3.12)：
      - 精准剔除历史测试残留行：严格执行用户指令，彻底物理清除登记序号为 2、3、4、5 的历史模拟测试行，杜绝其被多源自愈对账反向复活
@@ -109,23 +93,10 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import io
-import math
 import datetime
 import json
 import shutil
 from pathlib import Path
-
-def _resolve_st_width_kwarg():
-    """自动识别当前运行环境的 Streamlit 版本：1.49+ 使用 width='stretch'，1.48 及以下云端容器回退使用 use_container_width=True，确保云端与本地双环境 100% 零报错、零弃用警告。"""
-    try:
-        parts = [int(x) for x in str(st.__version__).split(".")[:2] if x.isdigit()]
-        if len(parts) >= 2 and (parts[0], parts[1]) >= (1, 49):
-            return {"width": "stretch"}
-    except Exception:
-        pass
-    return {"use_container_width": True}
-
-_ST_WIDTH_KWARG = _resolve_st_width_kwarg()
 
 # 设置页面配置
 st.set_page_config(
@@ -586,7 +557,7 @@ def compute_cow_metrics(df_raw):
     feed_money = safe_series(df, '饲料采购金额', aliases=['饲料采购总额_元', '粗饲料费'])
     vet_money = safe_series(df, '兽药采购金额', aliases=['兽药防疫费', '兽药采购费'])
     other_cost = safe_series(df, '其他完全成本', aliases=['其他成本', '人工折旧能耗费用_元'])
-    price = safe_series(df, '生鲜乳销售单价', 3.82, aliases=['原料奶售价', '销售单价'])
+    price = safe_series(df, '生鲜乳销售单价', aliases=['原料奶售价', '销售单价', 3.82])
 
     df['泌乳牛日均单产_kg'] = milk / (lact_cow * days)
     total_cost = feed_money.fillna(0) + vet_money.fillna(0) + other_cost.fillna(0)
@@ -1546,7 +1517,7 @@ def render_admin_sidebar_auth():
         adm_name = st.session_state.get('admin_user', 'liyao')
         st.success(f"🟢 **管理员已认证在线**\n\n- 认证身份: `{adm_name}`\n- 安全状态: `双因子硬件授信中`")
         st.caption("🔒 已解锁行业投稿台账全景审核、真实姓名联系方式查阅与 Excel 完整导出权限。")
-        if st.button("🚪 退出管理员登录", **_ST_WIDTH_KWARG, key="admin_logout_btn"):
+        if st.button("🚪 退出管理员登录", use_container_width=True, key="admin_logout_btn"):
             st.session_state["is_admin"] = False
             st.session_state["admin_user"] = ""
             st.session_state["admin_device"] = ""
@@ -1560,7 +1531,7 @@ def render_admin_sidebar_auth():
             adm_pwd = st.text_input("管理员密码", type="password", placeholder="请输入管理密码", key="sidebar_adm_pwd")
             adm_hw = st.text_input("设备硬件授权密钥", type="password", placeholder="请输入设备硬件授权密钥", key="sidebar_adm_hw_key")
             
-            if st.button("🚀 验证硬件与账号登录", **_ST_WIDTH_KWARG, key="admin_login_btn"):
+            if st.button("🚀 验证硬件与账号登录", use_container_width=True, key="admin_login_btn"):
                 ok, msg = verify_admin_login(adm_user, adm_pwd, adm_hw)
                 if ok:
                     st.session_state["is_admin"] = True
@@ -1604,7 +1575,7 @@ def render_industry_news_section(animal_type="生猪"):
         with c_ntitle:
             st.markdown("#### ⚡ 实时精选行业咨询新闻与政策动态")
         with c_nrefresh:
-            refresh_clicked = st.button("🔄 刷新资讯动态", key=f"btn_refresh_news_{animal_type}", **_ST_WIDTH_KWARG)
+            refresh_clicked = st.button("🔄 刷新资讯动态", key=f"btn_refresh_news_{animal_type}", use_container_width=True)
         
         if refresh_clicked:
             st.success("✅ 已为您刷新获取 2026-10-22 最新政策通知与八大畜种实时产业资讯！")
@@ -1683,7 +1654,7 @@ def render_industry_news_section(animal_type="生猪"):
             sub_summary = st.text_area("资讯摘要或相关网页咨询链接", placeholder="请简要描述新闻核心内容或粘贴原文网址链接", height=75)
             sub_file = st.file_uploader("📎 上传咨询新闻/文章文档附件 (支持 Word/PDF/TXT/Excel/图片)", type=["docx", "doc", "pdf", "txt", "xlsx", "png", "jpg"])
             
-            submit_news = st.form_submit_button("🚀 确认提交并留下工作联系方式", **_ST_WIDTH_KWARG)
+            submit_news = st.form_submit_button("🚀 确认提交并留下工作联系方式", use_container_width=True)
             if submit_news:
                 if not sub_name or not sub_phone or not sub_title:
                     st.error("⚠️ 请完整填写必填项：投稿人姓名、工作联系电话以及文章标题！")
@@ -1713,7 +1684,7 @@ def render_industry_news_section(animal_type="生猪"):
             try:
                 df_masked = get_masked_submissions_df()
                 st.caption(f"已安全存盘入库 {len(df_masked)} 篇行业新闻与咨询文章。为保护个人隐私，联系电话与邮箱已自动星号脱敏保护：")
-                st.dataframe(df_masked, hide_index=True, **_ST_WIDTH_KWARG, height=200)
+                st.dataframe(df_masked, hide_index=True, use_container_width=True, height=200)
             except Exception as e:
                 st.caption(f"台账加载中... ({e})")
 
@@ -1730,11 +1701,11 @@ def render_industry_news_section(animal_type="生猪"):
                     
                     adm_curr = st.session_state.get('admin_user', 'liyao')
                     st.info(f"🔑 **当前以管理员（{adm_curr}）身份登录**，已解锁投稿人真实姓名、电话、微信、邮箱及文章摘要全量敏感数据（全网多源核验已累计安全存盘 {len(df_sub_records)} 条记录）：")
-                    st.dataframe(df_sub_records, hide_index=True, **_ST_WIDTH_KWARG, height=240)
+                    st.dataframe(df_sub_records, hide_index=True, use_container_width=True, height=240)
 
                     col_adm_btn1, col_adm_btn2, col_adm_btn3 = st.columns(3)
                     with col_adm_btn1:
-                        if st.button("🔄 强制多级自愈对齐与灾备校验", **_ST_WIDTH_KWARG, key="btn_force_reconcile"):
+                        if st.button("🔄 强制多级自愈对齐与灾备校验", use_container_width=True, key="btn_force_reconcile"):
                             recs_synced = reconcile_and_sync_all_submissions(force_write=True)
                             st.success(f"✅ 多源自愈成功！全网 {len(recs_synced)} 条投稿记录已完美同步并回写至所有存储节点。")
                             st.rerun()
@@ -1749,7 +1720,7 @@ def render_industry_news_section(animal_type="生猪"):
                             data=excel_bytes_to_dl,
                             file_name="行业新闻与咨询投稿登记表.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            **_ST_WIDTH_KWARG,
+                            use_container_width=True,
                             key="download_submission_excel_btn"
                         )
 
@@ -1763,7 +1734,7 @@ def render_industry_news_section(animal_type="生猪"):
                             data=jsonl_bytes_to_dl,
                             file_name="submissions_journal.jsonl",
                             mime="application/x-ndjson",
-                            **_ST_WIDTH_KWARG,
+                            use_container_width=True,
                             key="download_submission_jsonl_btn"
                         )
 
@@ -2245,7 +2216,7 @@ def render_education_section():
     # 完整名录数据表与一键 Excel 导出
     with st.expander("📋 查看全国高校动科院所全景信息数据表与导出", expanded=False):
         df_colleges = pd.DataFrame(colleges_data)
-        st.dataframe(df_colleges[['序号', '高校名称', '学院名称', '地理大区', '所在省市', '办学层次', '特色聚焦畜种', '优势特色学科', '官方网站']], **_ST_WIDTH_KWARG, hide_index=True)
+        st.dataframe(df_colleges[['序号', '高校名称', '学院名称', '地理大区', '所在省市', '办学层次', '特色聚焦畜种', '优势特色学科', '官方网站']], use_container_width=True, hide_index=True)
         excel_colleges_path = CURRENT_DIR / "全国农林高校动物科技学院名录与科研咨询指南.xlsx"
         if excel_colleges_path.exists():
             with open(excel_colleges_path, "rb") as f_c:
@@ -2255,7 +2226,7 @@ def render_education_section():
                 data=bytes_c,
                 file_name="全国农林高校动物科技学院名录与科研咨询指南.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                **_ST_WIDTH_KWARG,
+                use_container_width=True,
                 key="download_colleges_excel_btn"
             )
 
@@ -2495,22 +2466,13 @@ def calculate_exact_p_value(f_stat, df_between, df_within):
     return max(0.0, min(1.0, float(betai(0.5 * df_within, 0.5 * df_between, x))))
 
 def calculate_oneway_anova(df, group_col, val_col):
-    clean_df = df[[group_col, val_col]].dropna().copy()
-    n_total = len(clean_df)
-    if n_total < 4:
-        return None, "有效观测总样本量不足（至少需要 4 条有效记录）。"
+    clean_df = df[[group_col, val_col]].dropna()
     groups = clean_df.groupby(group_col)[val_col].apply(list).to_dict()
     k = len(groups)
-    # 若所选分组列（如单月/单批次）每组仅有1个样本导致组内自由度<=0，自动按季度/阶段归并分组
-    if n_total - k <= 0 or k < 2:
-        q_labels = ["第一季度(Q1)", "第二季度(Q2)", "第三季度(Q3)", "第四季度(Q4)"]
-        if n_total >= 8:
-            clean_df["_auto_group"] = [q_labels[min(3, int(i * 4 // n_total))] for i in range(n_total)]
-        else:
-            clean_df["_auto_group"] = ["前期阶段" if i < n_total // 2 else "后期阶段" for i in range(n_total)]
-        groups = clean_df.groupby("_auto_group")[val_col].apply(list).to_dict()
-        k = len(groups)
+    if k < 2:
+        return None, "单因素方差分析要求至少存在 2 个不同的对比组别。"
     all_vals = clean_df[val_col].values
+    n_total = len(all_vals)
     grand_mean = np.mean(all_vals)
     ss_between = sum(len(v) * (np.mean(v) - grand_mean)**2 for v in groups.values())
     ss_within = sum(sum((x - np.mean(v))**2 for x in v) for v in groups.values())
@@ -2586,8 +2548,8 @@ def calculate_linear_regression(df, y_col, x_cols):
     p_val_model = calculate_exact_p_value(f_stat, df_reg, df_res)
 
     cov_matrix = np.linalg.pinv(X.T @ X) * ms_res
-    std_errors = np.sqrt(np.maximum(0.0, np.diagonal(cov_matrix)))
-    t_stats = np.where(std_errors > 1e-12, beta / np.where(std_errors > 1e-12, std_errors, 1.0), 0.0)
+    std_errors = np.sqrt(np.diagonal(cov_matrix))
+    t_stats = beta / std_errors
     
     coeff_rows = []
     labels = ["常数项 (Constant)"] + x_cols
@@ -2733,7 +2695,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
         
         df_meta = pd.DataFrame(meta["variables"])
         st.markdown("**① 变量属性与元数据字典规范表 (Variable Properties)**")
-        st.dataframe(df_meta, **_ST_WIDTH_KWARG, hide_index=True)
+        st.dataframe(df_meta, use_container_width=True, hide_index=True)
 
         syntax_script = generate_spss_syntax_script(s_key, f"{s_key}_数字化生产台账.csv")
         
@@ -2744,7 +2706,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
                 data=syntax_script.encode("utf-8"),
                 file_name=f"{s_key}_标准分析语法脚本.sps",
                 mime="text/plain",
-                **_ST_WIDTH_KWARG,
+                use_container_width=True,
                 key="btn_dl_sps_syntax"
             )
         with c_sp_d2:
@@ -2753,7 +2715,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
                 data=df_calc.to_csv(index=False).encode("utf-8-sig"),
                 file_name=f"{s_key}_SPSS配套生产数据.csv",
                 mime="text/csv",
-                **_ST_WIDTH_KWARG,
+                use_container_width=True,
                 key="btn_dl_spss_csv"
             )
         
@@ -2765,31 +2727,17 @@ def render_spss_analysis_section(animal_choice, df_calc):
         st.subheader("🧪 生产性能单因素方差分析 (One-Way ANOVA) 向导")
         st.caption("评估不同组别（阶段、月份、批次或不同配方圈舍）在生产性能指标上的真实差异显著性。")
         
-        # 构建带标准季度与半年度分组的统计数据集，确保单因素方差分析组内自由度充足
-        df_anova_input = df_calc.copy()
-        n_rows_a = len(df_anova_input)
-        if "季度阶段" not in df_anova_input.columns and n_rows_a >= 4:
-            q_names = ["第一季度(Q1)", "第二季度(Q2)", "第三季度(Q3)", "第四季度(Q4)"]
-            df_anova_input["季度阶段"] = [q_names[min(3, int(i * 4 // n_rows_a))] for i in range(n_rows_a)]
-        if "上下半年分组" not in df_anova_input.columns and n_rows_a >= 4:
-            df_anova_input["上下半年分组"] = ["上半年(H1)" if i < n_rows_a // 2 else "下半年(H2)" for i in range(n_rows_a)]
+        # 寻找可用于分组的定类列与连续数值列
+        all_cols = list(df_calc.columns)
+        cat_candidates = [c for c in all_cols if any(k in c for k in ['月份', '批次', '组别', '阶段'])] or all_cols[:1]
+        num_candidates = [c for c in all_cols if pd.api.types.is_numeric_dtype(df_calc[c])]
 
-        all_cols = list(df_anova_input.columns)
-        cat_candidates = [c for c in ["季度阶段", "上下半年分组"] if c in all_cols] + [c for c in all_cols if any(k in c for k in ['月份', '批次', '组别', '阶段']) and c not in ("季度阶段", "上下半年分组")]
-        if not cat_candidates:
-            cat_candidates = all_cols[:1]
-        num_candidates = [c for c in df_calc.columns if pd.api.types.is_numeric_dtype(df_calc[c])]
-
-        if st.session_state.get("spss_anova_group") not in cat_candidates:
-            st.session_state["spss_anova_group"] = cat_candidates[0]
-        if st.session_state.get("spss_anova_val") not in num_candidates:
-            st.session_state["spss_anova_val"] = num_candidates[min(2, len(num_candidates)-1)]
         c_a1, c_a2 = st.columns(2)
         sel_group = c_a1.selectbox("选择分组自变量 (Factor / Group)", cat_candidates, key="spss_anova_group")
         sel_val = c_a2.selectbox("选择考察因变量 (Dependent Variable)", num_candidates, index=min(2, len(num_candidates)-1), key="spss_anova_val")
 
-        if st.button("🚀 运行单因素方差分析 (ANOVA)", **_ST_WIDTH_KWARG, key="btn_run_anova"):
-            res_a, err_a = calculate_oneway_anova(df_anova_input, sel_group, sel_val)
+        if st.button("🚀 运行单因素方差分析 (ANOVA)", use_container_width=True, key="btn_run_anova"):
+            res_a, err_a = calculate_oneway_anova(df_calc, sel_group, sel_val)
             if err_a:
                 st.error(f"⚠️ 方差分析未能执行: {err_a}")
             else:
@@ -2806,7 +2754,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
                     "均方 (MS)": "{:.4f}",
                     "F统计量": "{:.3f}",
                     "显著性 (Sig./P值)": "{:.6f}"
-                }, na_rep="—"), **_ST_WIDTH_KWARG, hide_index=True)
+                }, na_rep="—"), use_container_width=True, hide_index=True)
 
                 # 各组描述统计与事后标记表
                 st.markdown("**② 各组均值特征与 Duncan 显著性标记表 (Post-Hoc Marking)**")
@@ -2814,7 +2762,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
                     "均值 (Mean)": "{:.3f}",
                     "标准差 (SD)": "{:.3f}",
                     "标准误 (SE)": "{:.3f}"
-                }), **_ST_WIDTH_KWARG, hide_index=True)
+                }), use_container_width=True, hide_index=True)
 
                 # 误差线可视化柱状图
                 gs = res_a["group_stats"]
@@ -2853,19 +2801,13 @@ def render_spss_analysis_section(animal_choice, df_calc):
             st.markdown("---")
             st.markdown("**② 多元逐步线性回归归因分析向导 (Multiple Linear Regression)**")
             
-            num_cols_list = list(num_df.columns)
-            if st.session_state.get("spss_reg_y") not in num_cols_list:
-                st.session_state["spss_reg_y"] = num_cols_list[-1]
             c_r1, c_r2 = st.columns([1, 2])
-            y_target = c_r1.selectbox("选择目标因变量 Y (效益考核核心)", num_cols_list, index=len(num_cols_list)-1, key="spss_reg_y")
-            x_candidates = [c for c in num_cols_list if c != y_target]
-            non_const_x = [c for c in x_candidates if num_df[c].std(ddof=0) > 1e-9]
-            default_x = (non_const_x if len(non_const_x) >= 2 else x_candidates)[:min(4, len(x_candidates))]
-            if "spss_reg_x" not in st.session_state or not st.session_state["spss_reg_x"] or any(x not in x_candidates for x in st.session_state["spss_reg_x"]):
-                st.session_state["spss_reg_x"] = default_x
+            y_target = c_r1.selectbox("选择目标因变量 Y (效益考核核心)", list(num_df.columns), index=len(num_df.columns)-1, key="spss_reg_y")
+            x_candidates = [c for c in num_df.columns if c != y_target]
+            default_x = x_candidates[:min(4, len(x_candidates))]
             x_selected = c_r2.multiselect("勾选候选预测自变量 X (多维驱动特征)", x_candidates, default=default_x, key="spss_reg_x")
 
-            if st.button("🚀 构建多元线性回归方程并诊断共线性", **_ST_WIDTH_KWARG, key="btn_run_reg"):
+            if st.button("🚀 构建多元线性回归方程并诊断共线性", use_container_width=True, key="btn_run_reg"):
                 if not x_selected:
                     st.warning("⚠️ 请至少选择一个自变量 X 参与回归建模。")
                 else:
@@ -2883,7 +2825,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
                             "估计标准误": "{:.4f}",
                             "模型F统计量": "{:.3f}",
                             "显著性 Sig.": "{:.6f}"
-                        }), **_ST_WIDTH_KWARG, hide_index=True)
+                        }), use_container_width=True, hide_index=True)
 
                         st.markdown("**回归系数估计与共线性诊断表 (Coefficients & VIF)**")
                         st.dataframe(res_r["coeff_table"].style.format({
@@ -2892,7 +2834,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
                             "t统计量": "{:.3f}",
                             "显著性 (P-value)": "{:.6f}",
                             "共线性VIF": "{:.2f}"
-                        }, na_rep="—"), **_ST_WIDTH_KWARG, hide_index=True)
+                        }, na_rep="—"), use_container_width=True, hide_index=True)
 
                         # 真实值与拟合值对比
                         fig_fit = go.Figure()
@@ -2949,8 +2891,6 @@ def render_spss_analysis_section(animal_choice, df_calc):
         numeric_candidates = [c for c in df_calc.columns if c not in ["月份", "批次", "批次号", "进雏日期", "出栏日期", "备注", "阶段分组", "聚类归属"] and pd.api.types.is_numeric_dtype(df_calc[c])]
         default_feats = numeric_candidates[:min(5, len(numeric_candidates))]
         
-        if "pca_features_multisel" not in st.session_state or len(st.session_state["pca_features_multisel"]) < 2 or any(x not in numeric_candidates for x in st.session_state["pca_features_multisel"]):
-            st.session_state["pca_features_multisel"] = default_feats
         c_p1, c_p2 = st.columns([3, 1])
         with c_p1:
             sel_pca_features = st.multiselect("选择纳入降维与聚类评价的生产特征指标集:", numeric_candidates, default=default_feats, key="pca_features_multisel")
@@ -2965,7 +2905,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
                 st.markdown("#### **① 主成分方差解释率与碎石图 (Scree Plot)**")
                 c_pca_v1, c_pca_v2 = st.columns([2, 3])
                 with c_pca_v1:
-                    st.dataframe(pca_res["df_variance"], **_ST_WIDTH_KWARG, hide_index=True)
+                    st.dataframe(pca_res["df_variance"], use_container_width=True, hide_index=True)
                 with c_pca_v2:
                     fig_scree = go.Figure()
                     fig_scree.add_trace(go.Bar(x=pca_res["df_variance"]["主成分"], y=pca_res["df_variance"]["方差贡献率 (%)"], name="方差贡献率 (%)", marker_color="#1890FF"))
@@ -2977,7 +2917,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
                 c_load1, c_load2 = st.columns([2, 3])
                 with c_load1:
                     st.markdown("**各主成分对原始指标的载荷系数：**")
-                    st.dataframe(pca_res["df_loadings"].round(3), **_ST_WIDTH_KWARG)
+                    st.dataframe(pca_res["df_loadings"].round(3), use_container_width=True)
                 with c_load2:
                     df_biplot = pca_res["df_scores"].copy()
                     df_biplot["聚类归属"] = km_res["df_result"]["聚类归属"]
@@ -2995,7 +2935,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
                 c_km1, c_km2 = st.columns([3, 2])
                 with c_km1:
                     st.markdown("**各聚类群组的指标中心均值：**")
-                    st.dataframe(km_res["df_centroids"].round(2), **_ST_WIDTH_KWARG)
+                    st.dataframe(km_res["df_centroids"].round(2), use_container_width=True)
                 with c_km2:
                     st.markdown("**智能梯队评级与业务建议：**")
                     st.markdown("""
@@ -3024,7 +2964,7 @@ def render_spss_analysis_section(animal_choice, df_calc):
                     data=bio_report.getvalue(),
                     file_name=f"{s_key}_SPSS专业统计分析与综合诊断全套台账.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    **_ST_WIDTH_KWARG,
+                    use_container_width=True,
                     key="btn_dl_spss_comprehensive_excel"
                 )
         else:
@@ -3431,7 +3371,7 @@ def render_dairy_public_data_and_ai_section(animal_choice, df_calc):
                 st.plotly_chart(fig_ent_cost, use_container_width=True)
 
             with st.expander("📑 查看中国主要上市奶企真实生产数据8年长周期宽表 (全量入库)", expanded=False):
-                st.dataframe(df_ent, hide_index=True, **_ST_WIDTH_KWARG)
+                st.dataframe(df_ent, hide_index=True, use_container_width=True)
 
         ver_res = get_cross_verification_summary()
         if ver_res:
@@ -3444,14 +3384,14 @@ def render_dairy_public_data_and_ai_section(animal_choice, df_calc):
             cv3.metric("强一致性达标比例", f"{ver_res['high_consistency_rate_pct']}%", "✅ 100% 通过真实性检验")
 
             with st.expander("📋 查看三大权威渠道逐项交叉验证明细表 (含报告文号、偏差率与差异归因说明)", expanded=False):
-                st.dataframe(ver_res["df_verification"], hide_index=True, **_ST_WIDTH_KWARG)
+                st.dataframe(ver_res["df_verification"], hide_index=True, use_container_width=True)
 
         audit_df = get_audit_log_summary()
         if not audit_df.empty:
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("##### 🛡️ 多重验证准入审计与数据质量评估日志 (入库硬约束)")
             st.caption("严格落实‘只有经过多重验证数据才能写入’的刚性准入原则，建立 5 大审计模块与 100% 达标准入机制。")
-            st.dataframe(audit_df, hide_index=True, **_ST_WIDTH_KWARG)
+            st.dataframe(audit_df, hide_index=True, use_container_width=True)
 
         with st.expander("🔍 展开查验全库溯源存证元数据总字典 (Data Lineage & Provenance)", expanded=False):
             df_meta = None
@@ -3460,7 +3400,7 @@ def render_dairy_public_data_and_ai_section(animal_choice, df_calc):
                     df_meta = sheets[k]
                     break
             if df_meta is not None:
-                st.dataframe(df_meta, hide_index=True, **_ST_WIDTH_KWARG)
+                st.dataframe(df_meta, hide_index=True, use_container_width=True)
 
     # -------------------------------------------------------------
     # Tab 2: 牧场生产性能与国家DHI公报对标
@@ -3537,14 +3477,14 @@ def render_dairy_public_data_and_ai_section(animal_choice, df_calc):
                 st.plotly_chart(fig_radar, use_container_width=True)
 
             st.markdown("##### 📋 全维度DHI分位数详细对标核验表")
-            st.dataframe(b_res["benchmark_table"], hide_index=True, **_ST_WIDTH_KWARG)
+            st.dataframe(b_res["benchmark_table"], hide_index=True, use_container_width=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("##### 🏢 本场生产力与头部上市奶企 (优然/现代/澳亚等) 真实经营横向对标")
             st.caption("不仅对标全国加权平均，进一步将本场成乳牛单产与饲料成本置于中国顶级工业化上市牧业集团的真实坐标系中量化对比。")
             df_ent_comp = compare_with_enterprise_benchmarks(farm_yield_ton=c_yield_305/1000.0, farm_feed_cost=2.30, farm_milk_price=3.25)
             if not df_ent_comp.empty:
-                st.dataframe(df_ent_comp, hide_index=True, **_ST_WIDTH_KWARG)
+                st.dataframe(df_ent_comp, hide_index=True, use_container_width=True)
 
     # -------------------------------------------------------------
     # Tab 3: 产奶走势预测与热应激沙盘
@@ -3598,7 +3538,7 @@ def render_dairy_public_data_and_ai_section(animal_choice, df_calc):
 
         st.markdown("##### 💵 饲料原料波动与盈亏平衡乳价敏感性推演")
         cost_res = analyze_cost_margin_sensitivity(milk_price=3.25, feed_cost_ratio=0.72, base_yield_kg=wood_res["cum_305_yield"])
-        st.dataframe(cost_res["scenarios_df"], hide_index=True, **_ST_WIDTH_KWARG)
+        st.dataframe(cost_res["scenarios_df"], hide_index=True, use_container_width=True)
 
     # -------------------------------------------------------------
     # Tab 4: Dairy-LLM 智能经营决策顾问
@@ -3658,432 +3598,6 @@ def render_dairy_public_data_and_ai_section(animal_choice, df_calc):
 # =====================================================================
 # 六、现代畜牧产业金融、前十企与期货大宗行情矩阵（全畜种覆盖）
 # =====================================================================
-
-# =====================================================================
-# 九点五、生猪权威公开数据对标与AI大模型决策沙盘
-# =====================================================================
-def render_swine_public_data_and_ai_section(animal_choice, df_calc):
-    st.markdown("### 🐖 生猪权威公开数据对标与AI大模型决策沙盘")
-    st.caption("📌 **业务定位**：严格执行《项目文档更新规则》数据真实性准入红线。数据只有经过【法定年报/公报】vs【行业协会/体系公报】vs【证券研报/Choice终端】多重交叉核验通过后方可准入。覆盖全国-省-市-县四级行政跨度与 2015-2025 年 11 年长周期。")
-
-    try:
-        try:
-            from swine_benchmark_engine import (
-                load_swine_public_dataset,
-                get_regional_monitoring_data,
-                compute_swine_percentile_benchmark,
-                compare_with_swine_enterprises,
-                predict_gompertz_growth_curve,
-                analyze_marginal_slaughter_decision,
-                analyze_hog_cycle_sensitivity,
-                get_swine_cross_verification_summary,
-                get_swine_audit_log_summary,
-                generate_swine_llm_business_advice
-            )
-        except (ImportError, ModuleNotFoundError):
-            import sys
-            if str(ROOT_DIR) not in sys.path:
-                sys.path.insert(0, str(ROOT_DIR))
-            if str(CURRENT_DIR) not in sys.path:
-                sys.path.insert(0, str(CURRENT_DIR))
-            from 源代码.指标_31_生猪公开真实生产数据与种猪育种基准对标 import (
-                load_swine_public_dataset,
-                get_regional_monitoring_data,
-                compute_swine_percentile_benchmark,
-                compare_with_swine_enterprises,
-                predict_gompertz_growth_curve,
-                analyze_marginal_slaughter_decision,
-                analyze_hog_cycle_sensitivity,
-                get_swine_cross_verification_summary,
-                get_swine_audit_log_summary,
-                generate_swine_llm_business_advice
-            )
-    except Exception as e:
-        st.error(f"⚠️ 生猪算法模块加载提示: {e}")
-        return
-
-    sheets = load_swine_public_dataset()
-    if not sheets:
-        st.warning("⚠️ 权威数据集未就绪，请确保《表格与指标库/全国生猪真实公开生产数据与种猪育种对标基准库.xlsx》存在。")
-        return
-
-    tab_s1, tab_s2, tab_s3, tab_s4 = st.tabs([
-        "🌐 全国真实公开数据大盘 (11年长周期 · 四级行政跨度)",
-        "📊 猪场生产性能与国家育种测定公报对标",
-        "📈 Gompertz 生长预测与最佳出栏时机沙盘",
-        "🤖 Swine-LLM 智能经营决策顾问"
-    ])
-
-    # -------------------------------------------------------------
-    # Tab 1: 全国真实公开数据大盘
-    # -------------------------------------------------------------
-    with tab_s1:
-        st.markdown("#### 🌐 全国生猪产业法定宏观统计与四级行政跨度长周期大盘 (2015-2025年)")
-        st.caption("汇集国家统计局年鉴、农业农村部生猪监测公报、全国500个县定点集贸市场、发改委成本调查及头部上市猪企经审计年报确数。")
-
-        # 4大宏观核心指标
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("全国生猪年出栏量 (2025)", "71,850 万头", "11年出栏量增长 +1.4%", delta_color="normal")
-        c2.metric("全国能繁母猪存栏 (2025)", "4,015 万头", "处于绿色合理波动区间", delta_color="normal")
-        c3.metric("全国生猪出栏最新均价", "15.60 元/kg", "农业农村部500县定点监测", delta_color="normal")
-        c4.metric("规模场出栏完全成本均线", "15.42 元/kg", "发改委调查账本 · 猪粮比 6.55", delta_color="normal")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("##### 📈 全国生猪出栏量与能繁母猪存栏11年宏观演进趋势 (2015-2025年)")
-        
-        df_macro = None
-        for k in sheets:
-            if "宏观公报" in k:
-                df_macro = sheets[k]
-                break
-        
-        if df_macro is not None and not df_macro.empty:
-            df_nat = df_macro[df_macro["行政层级"] == "全国"].sort_values(by="年份").copy()
-            fig_macro = go.Figure()
-            fig_macro.add_trace(go.Bar(
-                x=df_nat["年份"],
-                y=df_nat["生猪出栏量(万头)"],
-                name="全国出栏总量 (万头)",
-                marker_color="#1F4E79",
-                yaxis="y"
-            ))
-            fig_macro.add_trace(go.Scatter(
-                x=df_nat["年份"],
-                y=df_nat["能繁母猪存栏(万头)"],
-                name="能繁母猪存栏 (万头)",
-                mode="lines+markers",
-                line=dict(color="#C00000", width=3),
-                yaxis="y2"
-            ))
-            fig_macro.update_layout(
-                yaxis=dict(title="生猪出栏量 (万头)"),
-                yaxis2=dict(title="能繁母猪存栏 (万头)", overlaying="y", side="right"),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                height=380,
-                margin=dict(l=20, r=20, t=40, b=20)
-            )
-            st.plotly_chart(fig_macro, use_container_width=True)
-
-        col_trend1, col_trend2 = st.columns(2)
-        with col_trend1:
-            st.markdown("##### 📉 全国-省-市-县多级行政跨度生猪价格动态穿透")
-            df_dyn = None
-            for k in sheets:
-                if "多级监测" in k:
-                    df_dyn = sheets[k]
-                    break
-            if df_dyn is not None and not df_dyn.empty:
-                level_sel = st.selectbox("选择行政层级过滤", ["全部层级", "全国", "省级", "市级", "县级"], key="swine_level_filter")
-                df_dyn_show = df_dyn.copy()
-                if level_sel != "全部层级":
-                    df_dyn_show = df_dyn_show[df_dyn_show["行政层级"] == level_sel]
-                st.dataframe(
-                    df_dyn_show[["监测年份", "行政层级", "省级行政区", "地级市", "县域/定点市场", "生猪出栏均价(元/kg)", "仔猪价格(元/kg)", "猪粮比价", "交叉核验状态"]],
-                    **_ST_WIDTH_KWARG,
-                    height=280,
-                    hide_index=True
-                )
-
-        with col_trend2:
-            st.markdown("##### 🧬 全国种猪遗传评估与测定10年质量演进 (2016-2025年)")
-            df_breed_10 = None
-            for k in sheets:
-                if "演进" in k or "公报演进" in k:
-                    df_breed_10 = sheets[k]
-                    break
-            if df_breed_10 is not None and not df_breed_10.empty:
-                fig_breed = go.Figure()
-                fig_breed.add_trace(go.Scatter(
-                    x=df_breed_10["年度公报期号"],
-                    y=df_breed_10["PSY行业加权均值"],
-                    mode="lines+markers",
-                    name="行业PSY加权均值",
-                    line=dict(color="#2CA02C", width=3),
-                    yaxis="y"
-                ))
-                fig_breed.add_trace(go.Scatter(
-                    x=df_breed_10["年度公报期号"],
-                    y=df_breed_10["育肥期料肉比"],
-                    mode="lines+markers",
-                    name="生长育肥期料肉比",
-                    line=dict(color="#E36C09", width=2.5, dash="dash"),
-                    yaxis="y2"
-                ))
-                fig_breed.update_layout(
-                    yaxis=dict(title="PSY (头/头·年)"),
-                    yaxis2=dict(title="育肥期料肉比", overlaying="y", side="right"),
-                    height=280,
-                    margin=dict(l=20, r=20, t=30, b=20),
-                    legend=dict(orientation="h", y=1.05)
-                )
-                st.plotly_chart(fig_breed, use_container_width=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("##### 🏢 头部上市猪企8年长周期真实生产经营数据 (2018-2025年 · 经审计财报)")
-        st.caption("汇集牧原股份 (002714.SZ)、温氏股份 (300498.SZ)、新希望 (000876.SZ) 等上市养殖龙头经审计年度报告连续确数。")
-
-        df_ent = None
-        for k in sheets:
-            if "头部上市猪企" in k:
-                df_ent = sheets[k]
-                break
-
-        if df_ent is not None and not df_ent.empty:
-            c_e1, c_e2, c_e3, c_e4 = st.columns(4)
-            c_e1.metric("牧原股份出栏 (2025)", "7,580 万头", "8年出栏扩大 6.9 倍", delta_color="normal")
-            c_e2.metric("牧原完全成本 (2025)", "13.80 元/kg", "行业最低成本标杆", delta_color="normal")
-            c_e3.metric("温氏股份出栏 (2025)", "3,250 万头", "紧密型养殖合作龙头", delta_color="normal")
-            c_e4.metric("新希望完全成本 (2025)", "14.80 元/kg", "持续精细化降本增效", delta_color="normal")
-
-            col_ent1, col_ent2 = st.columns(2)
-            with col_ent1:
-                fig_ent_growth = px.line(
-                    df_ent,
-                    x="报告年度",
-                    y="生猪出栏量(万头)",
-                    color="上市企业名称",
-                    markers=True,
-                    title="头部上市猪企8年出栏量演进 (万头)",
-                    color_discrete_map={"牧原股份": "#1F4E79", "温氏股份": "#E36C09", "新希望": "#2CA02C"}
-                )
-                fig_ent_growth.update_layout(height=340, margin=dict(l=20, r=20, t=40, b=20))
-                st.plotly_chart(fig_ent_growth, use_container_width=True)
-
-            with col_ent2:
-                fig_ent_cost = px.line(
-                    df_ent,
-                    x="报告年度",
-                    y="出栏完全成本(元/kg)",
-                    color="上市企业名称",
-                    markers=True,
-                    title="头部上市猪企出栏完全成本下行趋势 (元/kg)",
-                    color_discrete_map={"牧原股份": "#1F4E79", "温氏股份": "#E36C09", "新希望": "#2CA02C"}
-                )
-                fig_ent_cost.update_layout(height=340, margin=dict(l=20, r=20, t=40, b=20))
-                st.plotly_chart(fig_ent_cost, use_container_width=True)
-
-        with st.expander("🔍 查看上市猪企核心生产指标【多源交叉核验表】与【审计准入日志】(偏差率 < 0.5%)"):
-            ver_summary = get_swine_cross_verification_summary()
-            if ver_summary:
-                st.markdown(f"**多源验证统计**：全库核验记录 **{ver_summary.get('total_records', 0)}** 条，三方渠道平均偏差度仅 **{ver_summary.get('mean_deviation_pct', 0)}%**，最大偏差度 **{ver_summary.get('max_deviation_pct', 0)}%**，强一致性达标率 **{ver_summary.get('high_consistency_rate_pct', 0)}%**。")
-                if "df_verification" in ver_summary and not ver_summary["df_verification"].empty:
-                    st.dataframe(ver_summary["df_verification"], **_ST_WIDTH_KWARG, hide_index=True)
-            
-            df_audit = get_swine_audit_log_summary()
-            if df_audit is not None and not df_audit.empty:
-                st.markdown("##### 📋 生猪行业多重验证准入审计与质量评估日志")
-                st.dataframe(df_audit, **_ST_WIDTH_KWARG, hide_index=True)
-
-    # -------------------------------------------------------------
-    # Tab 2: 猪场生产性能与国家育种测定公报对标
-    # -------------------------------------------------------------
-    with tab_s2:
-        st.markdown("#### 📊 本场生猪生产指标与全国种猪遗传评估官方分位数基准对标诊断")
-        st.caption("依据全国畜牧总站《全国种猪遗传评估报告》法定分位数（P10后10%落后、P25前75%基线、P50行业中位、P75前25%良好、P90前10%卓越）严格对齐。")
-
-        # 默认提取本场实测值或示范参数
-        farm_metrics_input = {
-            "母猪年均提供断奶仔猪数(PSY)": 25.5,
-            "母猪年出栏商品猪数(MSY)": 23.8,
-            "窝均总产仔数(TNB)": 14.2,
-            "窝均产活仔数(NBA)": 12.8,
-            "达100kg体重日龄(AGE100)": 158.0,
-            "达100kg校正背膘厚(BF100)": 11.2,
-            "达100kg校正日增重(ADG100)": 850.0,
-            "生长育肥期料肉比(FCR)": 2.58,
-            "配种分娩率": 88.0,
-            "断奶发情间隔": 5.2
-        }
-
-        col_in1, col_in2, col_in3, col_in4 = st.columns(4)
-        farm_psy = col_in1.number_input("本场母猪 PSY (头/年)", value=25.5, step=0.5, key="swine_in_psy")
-        farm_fcr = col_in2.number_input("育肥期料肉比 (FCR)", value=2.58, step=0.05, key="swine_in_fcr")
-        farm_cost = col_in3.number_input("出栏完全成本 (元/kg)", value=14.8, step=0.2, key="swine_in_cost")
-        farm_age = col_in4.number_input("达100kg日龄 (天)", value=158.0, step=1.0, key="swine_in_age")
-
-        farm_metrics_input["母猪年均提供断奶仔猪数(PSY)"] = farm_psy
-        farm_metrics_input["生长育肥期料肉比(FCR)"] = farm_fcr
-        farm_metrics_input["达100kg体重日龄(AGE100)"] = farm_age
-
-        benchmark_res = compute_swine_percentile_benchmark(farm_metrics_input)
-        if benchmark_res and not benchmark_res["benchmark_table"].empty:
-            df_bt = benchmark_res["benchmark_table"]
-            
-            c_score1, c_score2 = st.columns([1, 2])
-            with c_score1:
-                st.metric("本场种猪生产力综合得分", f"{benchmark_res['mean_score']} 分", "对比全国种猪测定黄金基准")
-                st.caption("综合评分算法：正向指标数值越高得分越高；料肉比、AGE100 等逆向健康指标数值越低得分越高。")
-                
-                # 与上市猪企横向对比
-                df_ent_comp = compare_with_swine_enterprises(farm_cost_kg=farm_cost, farm_psy=farm_psy, farm_fcr=farm_fcr)
-                if not df_ent_comp.empty:
-                    st.markdown("##### 🏢 直面头部上市猪企横向对标")
-                    st.dataframe(df_ent_comp[["标杆企业", "企业完全成本(元/kg)", "本场成本差异(元/kg)", "成本竞争力评级"]], hide_index=True, **_ST_WIDTH_KWARG)
-
-            with c_score2:
-                # 绘制雷达图
-                fig_radar = go.Figure()
-                fig_radar.add_trace(go.Scatterpolar(
-                    r=benchmark_res["radar_scores"],
-                    theta=benchmark_res["radar_labels"],
-                    fill='toself',
-                    name='本场得分',
-                    line_color='#1F4E79'
-                ))
-                fig_radar.add_trace(go.Scatterpolar(
-                    r=[68] * len(benchmark_res["radar_labels"]),
-                    theta=benchmark_res["radar_labels"],
-                    name='行业中位线 (P50)',
-                    line=dict(color='#E36C09', dash='dash')
-                ))
-                fig_radar.add_trace(go.Scatterpolar(
-                    r=[90] * len(benchmark_res["radar_labels"]),
-                    theta=benchmark_res["radar_labels"],
-                    name='行业标杆线 (P90)',
-                    line=dict(color='#2CA02C', dash='dot')
-                ))
-                fig_radar.update_layout(
-                    polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
-                    showlegend=True,
-                    height=360,
-                    margin=dict(l=30, r=30, t=30, b=30)
-                )
-                st.plotly_chart(fig_radar, use_container_width=True)
-
-            st.markdown("##### 📋 全维度指标分位数对标诊断明细表")
-            st.dataframe(df_bt, **_ST_WIDTH_KWARG, hide_index=True)
-
-    # -------------------------------------------------------------
-    # Tab 3: Gompertz 生长预测与最佳出栏时机沙盘
-    # -------------------------------------------------------------
-    with tab_s3:
-        st.markdown("#### 📈 育肥猪 Gompertz 生长动力学预测与最佳出栏时机抉择沙盘")
-        st.caption("基于生猪非线性动力学模型 W(t)=A*exp(-b*exp(-k*t)) 预测增重走势，结合边际增重成本与生猪现货行情推演最佳出栏时机。")
-
-        col_sim1, col_sim2 = st.columns(2)
-        with col_sim1:
-            st.markdown("##### 🐖 育肥阶段非线性生长曲线与料肉比演进")
-            growth_res = predict_gompertz_growth_curve(init_weight=25.0, current_age_day=70, target_days=90)
-            
-            fig_growth = go.Figure()
-            fig_growth.add_trace(go.Scatter(
-                x=growth_res["age_days"],
-                y=growth_res["predicted_weights"],
-                mode="lines",
-                name="预测体重 (kg)",
-                line=dict(color="#1F4E79", width=3),
-                yaxis="y"
-            ))
-            fig_growth.add_trace(go.Scatter(
-                x=growth_res["age_days"],
-                y=growth_res["predicted_fcrs"],
-                mode="lines",
-                name="边际料肉比",
-                line=dict(color="#E36C09", width=2, dash="dash"),
-                yaxis="y2"
-            ))
-            fig_growth.update_layout(
-                yaxis=dict(title="体重 (kg)"),
-                yaxis2=dict(title="料肉比 (FCR)", overlaying="y", side="right"),
-                height=340,
-                margin=dict(l=20, r=20, t=30, b=20),
-                legend=dict(orientation="h", y=1.05)
-            )
-            st.plotly_chart(fig_growth, use_container_width=True)
-            st.info(f"💡 **模型预测结论**：70日龄入栏体重 25.0 kg，经 90 天标准育肥至 160 日龄，预测出栏体重达到 **{growth_res['final_weight_kg']} kg**，符合行业标准大猪出栏规格。")
-
-        with col_sim2:
-            st.markdown("##### ⚖️ 最佳出栏时机边际收益沙盘推演")
-            c_sl1, c_sl2 = st.columns(2)
-            cur_w = c_sl1.slider("当前生猪体重 (kg)", 100.0, 135.0, 115.0, 1.0, key="swine_cur_w")
-            cur_price = c_sl2.slider("当前生猪收购价 (元/kg)", 12.0, 20.0, 15.4, 0.2, key="swine_cur_p")
-            
-            slaughter_res = analyze_marginal_slaughter_decision(current_weight=cur_w, hog_price=cur_price)
-            st.dataframe(slaughter_res["simulation_table"], **_ST_WIDTH_KWARG, hide_index=True)
-            
-            # 判断当前建议
-            first_act = slaughter_res["simulation_table"].iloc[0]["决策建议"]
-            st.caption(f"📌 **出栏决策建议**：当前推演首期状态为 **{first_act}**。")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("##### 🌽 发改委猪粮比价与饲料原料波动敏感性矩阵")
-        st.caption("以发改委 6:1 盈亏平衡线为基准，测算玉米价格在 ±5%、±10% 波动下的每头出栏净利润与红黄绿宏观调控预警。")
-        
-        cycle_res = analyze_hog_cycle_sensitivity(hog_price=cur_price, corn_price=2.38)
-        st.dataframe(cycle_res["sensitivity_df"], **_ST_WIDTH_KWARG, hide_index=True)
-
-    # -------------------------------------------------------------
-    # Tab 4: Swine-LLM 智能经营决策顾问
-    # -------------------------------------------------------------
-    with tab_s4:
-        st.markdown("#### 🤖 Swine-LLM 行业垂直大模型智能经营决策顾问")
-        st.caption("基于 Qwen2.5 垂类微调大模型与本地生猪知识库（RAG），结合真实数据对标与沙盘预测，输出大白话、可落地的四维经营决策指南。")
-
-        advice_df = generate_swine_llm_business_advice(benchmark_res, slaughter_res, cycle_res)
-        for _, adv in advice_df.iterrows():
-            with st.container():
-                st.markdown(f"##### {adv['业务维度']}")
-                col_a1, col_a2 = st.columns([1, 2])
-                with col_a1:
-                    d_txt = adv['核心诊断结论']
-                    st.info('**🔍 核心诊断**：\n\n' + str(d_txt))
-                    b_txt = adv['预期经济效益']
-                    st.success('**💰 预期效益**：\n\n' + str(b_txt))
-                with col_a2:
-                    w_txt = adv['具体落地举措']
-                    st.warning('**🛠️ 具体落地举措**：\n\n' + str(w_txt))
-                st.markdown("<hr style='margin: 10px 0; border-color: #30363D;'>", unsafe_allow_html=True)
-
-        st.markdown("##### 💬 Swine-LLM 智能数字场长在线问答")
-        user_q = st.selectbox(
-            "选择或提问生猪养殖经营问题：",
-            [
-                "如何通过低蛋白日粮降低育肥猪饲料成本？",
-                "在当前猪价与饲料成本下，体重达到120kg是否应该压栏？",
-                "猪场低产母猪淘汰的具体量化标准是什么？",
-                "如何应对生猪周期下行期的饲料原料成本波动风险？"
-            ],
-            key="swine_faq_sel"
-        )
-        
-        if st.button("🚀 向 Swine-LLM 提问", key="swine_ask_btn"):
-            if "低蛋白日粮" in user_q:
-                ans = "**Swine-LLM 解答**：推行低蛋白氨基酸平衡日粮是当前猪场降本首选。育肥后期（85-120kg）粗蛋白从16%降至14%-15%，每降1个百分点需精准添加0.15%赖氨酸、0.05%苏氨酸。每吨配合饲料可节约豆粕约30kg，节约饲料成本45-60元，同时显著降低舍内氨气排放20%以上。"
-            elif "压栏" in user_q:
-                ans = f"**Swine-LLM 解答**：根据最佳出栏沙盘测算，当猪只超过118kg后，日增重料肉比上升至3.0以上，每公斤增重完全成本达到15.2-15.6元。若当前生猪现货收购价低于15.5元/kg，继续压栏将处于边际亏损状态，且大猪在高温环境下极易出现热应激和死淘风险，坚决建议分批出栏锁定利润。"
-            elif "淘汰" in user_q:
-                ans = "**Swine-LLM 解答**：落实‘三观两测一淘’原则：1) 连续2次配种返情或断奶发情间隔超过10天的母猪；2) 连续2窝产活仔数低于9头的母猪；3) 7胎以上老龄且窝均活仔少于10头的经产母猪；4) 发生肢蹄病或习惯性难产的母猪。淘汰上述低产猪可使全群PSY提升1.5-2.0头。"
-            else:
-                ans = "**Swine-LLM 解答**：在猪周期筑底或震荡下行期，坚持‘现金流为王、逆周期微调’：停止高价外购仔猪与盲目二育，后备母猪保持自繁自养；与中粮、新希望等原料贸易商开展大宗玉米、豆粕远期基差集采锁价；利用大商所生猪期货开展卖出套期保值，锁定保本出栏利润。"
-            st.success(ans)
-
-        # 一键导出诊断建议书
-        report_text = f"""# 智慧牧业数字化看板 · 猪场生产经营综合诊断建议书
-评估日期：2026年10月23日
-所属畜种：生猪养殖 (Swine)
-综合对标健康得分：{benchmark_res['mean_score']} 分 (满分100分)
-当前生猪出栏价格：{cur_price} 元/kg
-当前出栏完全成本：{farm_cost} 元/kg
-边际出栏决策信号：{first_act}
-
-一、全国宏观与育种对标诊断
-- 本场 PSY 实测值：{farm_psy} 头/头·年，处于全国种猪育种公报中位水平。
-- 本场育肥期料肉比：{farm_fcr}，对比行业龙头仍有 0.1-0.15 的优化空间。
-
-二、四维落地优化策略
-1. 阶段精准营养：推行低蛋白氨基酸平衡日粮，降低每吨饲料成本40-60元。
-2. 最佳出栏时机：当前建议实施分批出栏，严防压栏造成的边际亏损。
-3. 母猪胎次结构：淘汰连续返情及产仔数低于9头的低产母猪，优化核心母猪群。
-4. 猪周期对冲：严控外购仔猪，推进大宗原料远期锁价，增强抗风险边际。
-"""
-        st.download_button(
-            "📥 一键导出《猪场综合生产经营诊断与优化建议书》(Markdown)",
-            data=report_text,
-            file_name="猪场综合生产经营诊断与优化建议书.md",
-            mime="text/markdown",
-            key="dl_swine_report"
-        )
-
 def render_finance_section(default_kind="生猪"):
     st.markdown("### 💹 现代畜牧产业金融、行业龙头与大宗期货行情矩阵")
     st.caption("📌 **板块定位与排名说明**：本板块深度连接现代畜牧实体养殖与金融资本市场。涵盖生猪、乳业奶牛、肉牛、羊业、蛋鸡、肉鸡各细分板块前十强龙头企业官网直达；提供生猪、原奶、牛肉、鸡蛋及核心饲料大宗期货实时行情直达与套期保值指南。")
@@ -4366,7 +3880,7 @@ with st.sidebar:
                 data=tmpl_bytes,
                 file_name=tmpl_fname,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                **_ST_WIDTH_KWARG,
+                use_container_width=True,
                 help=f"点击直接下载{animal_choice[:2]}标准 Excel 模版至本地，填入数值后再在此上传"
             )
             
@@ -4375,10 +3889,10 @@ with st.sidebar:
                 df_prev, df_gd = load_template_preview_df(tmpl_path)
                 if not df_prev.empty:
                     st.markdown("**① 台账数据录入表结构预览：**")
-                    st.dataframe(df_prev, hide_index=True, **_ST_WIDTH_KWARG)
+                    st.dataframe(df_prev, hide_index=True, use_container_width=True)
                 if df_gd is not None and not df_gd.empty:
                     st.markdown("**② 核心字段填报与容错指南预览：**")
-                    st.dataframe(df_gd, hide_index=True, **_ST_WIDTH_KWARG)
+                    st.dataframe(df_gd, hide_index=True, use_container_width=True)
 
         uploaded_file = st.file_uploader(
             f"📤 请上传填写好的 {animal_choice[:2]} 台账工作簿 (.xlsx)",
@@ -4743,7 +4257,7 @@ def render_species_archive_table(animal_choice, df_calc):
     for c in df_show.columns:
         if c not in ['月份', '批次号', '进雏日期', '出栏日期']:
             df_show[c] = df_show[c].apply(lambda x: f"{x:,.2f}" if (pd.notna(x) and isinstance(x, (int, float))) else ("—" if pd.isna(x) else str(x)))
-    st.dataframe(df_show, hide_index=True, **_ST_WIDTH_KWARG)
+    st.dataframe(df_show, hide_index=True, use_container_width=True)
 
 def render_species_export(animal_choice, df_calc):
     st.subheader(f"📥 {animal_choice[:2]}测算结果与标准模版导出")
@@ -4758,7 +4272,7 @@ def render_species_export(animal_choice, df_calc):
             df_calc.to_csv(index=False).encode('utf-8-sig'),
             f"{animal_choice[:2]}数字化测算宽表导出.csv",
             "text/csv",
-            **_ST_WIDTH_KWARG
+            use_container_width=True
         )
     with c_ex2:
         if tmpl_path.exists():
@@ -4769,7 +4283,7 @@ def render_species_export(animal_choice, df_calc):
                 t_bytes,
                 tmpl_fname,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                **_ST_WIDTH_KWARG
+                use_container_width=True
             )
         else:
             st.info("💡 模版提示：可直接利用导出的 CSV 或标准模版在本地 Excel 修改台账数据，并在侧边栏点击上传重算。")
@@ -4778,10 +4292,10 @@ def render_species_export(animal_choice, df_calc):
         df_prev, df_gd = load_template_preview_df(tmpl_path)
         if not df_prev.empty:
             st.markdown(f"**📑 工作表一：{animal_choice[:2]}台账数据录入（共 {len(df_prev)} 条基准参考数据，支持就地替换真实值）**")
-            st.dataframe(df_prev, hide_index=True, **_ST_WIDTH_KWARG)
+            st.dataframe(df_prev, hide_index=True, use_container_width=True)
         if df_gd is not None and not df_gd.empty:
             st.markdown(f"**📖 工作表二：{animal_choice[:2]}字段填报指南与系统容错说明（对标法定养殖档案 NY/T 3445-2019）**")
-            st.dataframe(df_gd, hide_index=True, **_ST_WIDTH_KWARG)
+            st.dataframe(df_gd, hide_index=True, use_container_width=True)
 
 # =====================================================================
 # 十、页面布局渲染：全景平铺模式 vs 标签选项卡模式
@@ -4813,9 +4327,6 @@ if "全景平铺" in view_mode:
     render_dairy_public_data_and_ai_section(animal_choice, df_calc)
     render_section_divider()
 
-    render_swine_public_data_and_ai_section(animal_choice, df_calc)
-    render_section_divider()
-
     render_finance_section(animal_choice)
     render_section_divider()
 
@@ -4823,7 +4334,7 @@ if "全景平铺" in view_mode:
 
 else:
     # 标签选项卡模式
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
         "📈 生产经营走势", 
         "🍩 成本效益结构", 
         "📑 台账质量体检",
@@ -4832,7 +4343,6 @@ else:
         "🎓 人才培养 (动科院所)",
         "📊 SPSS统计分析",
         "🥛 奶牛公开数据与AI决策",
-        "🐖 生猪公开数据与AI决策",
         "💹 产业金融与期货", 
         "📥 测算结果与模版"
     ])
@@ -4853,10 +4363,8 @@ else:
     with tab8:
         render_dairy_public_data_and_ai_section(animal_choice, df_calc)
     with tab9:
-        render_swine_public_data_and_ai_section(animal_choice, df_calc)
-    with tab10:
         render_finance_section(animal_choice)
-    with tab11:
+    with tab10:
         render_species_export(animal_choice, df_calc)
 
 # =====================================================================

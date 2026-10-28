@@ -3917,6 +3917,7 @@ with st.sidebar:
     - **QQ**: `3100785036`
     - **WeChat (微信)**: `13679275651`
     - **项目作者**: 李尧 (学号: `2024010983`)
+    - **指导老师**: 博士生导师 张俊 老师
     - **培养单位**: 中国西北农林科技大学 动物科技学院
     """)
     st.caption("版本：V2.6 全畜种覆盖·全景分界增强·金融与DOI升级版 | 2026-10-22")
@@ -4372,19 +4373,21 @@ else:
 # =====================================================================
 render_section_divider()
 st.info("""
-**⚖️ 项目独立进行与知识产权严正声明 (Project Declaration)**
+**⚖️ 项目知识产权与学术严正声明 (Project Declaration)**
 
 **中文声明**：  
-该项目由**中国西北农林科技大学动物科技学院李尧（学号：2024010983）**于 2026 年 10 月独立进行，仅供交流学习，不得擅自进行论文发表及商用。任何未经许可的学术论文撰写发表、专利申请、商业软件封装或盈利性运营行为均属侵权。
+该项目由**中国西北农林科技大学动物科技学院李尧（学号：2024010983）**在博士生导师张俊老师指导下于 2026 年 10 月进行，仅供交流学习，不得擅自进行论文发表及商用。任何未经许可的学术论文撰写发表、专利申请、商业软件封装或盈利性运营行为均属侵权。
 
 **English Statement**:  
-*This project was independently developed and conducted in October 2026 by Li Yao (Student ID: 2024010983) from the College of Animal Science and Technology, Northwest A&F University. It is strictly intended for academic communication and educational study only. Unauthorized academic publication, thesis submission, software redistribution, or commercial use is strictly prohibited.*
+*This project was developed and conducted in October 2026 by Li Yao (Student ID: 2024010983) under the guidance of Ph.D. Supervisor Prof. Zhang Jun, from the College of Animal Science and Technology, Northwest A&F University. It is strictly intended for academic communication and educational study only. Unauthorized academic publication, thesis submission, software redistribution, or commercial use is strictly prohibited.*
 
 **📬 开发者联系方式 (Developer Contact)**:  
 - **QQ**: `3100785036`  
 - **WeChat (微信)**: `13679275651`  
+- **项目作者**: 李尧 (学号: `2024010983`)  
+- **指导老师**: 博士生导师 张俊 老师  
 - **机构**: 中国西北农林科技大学 动物科技学院 (College of Animal Science and Technology, Northwest A&F University)
 """)
 
 render_section_divider()
-st.markdown("© 2026 智慧牧业工程 · 李尧 2024010983 · 中国西北农林科技大学动物科技学院 · 覆盖八大畜禽种类数字化养殖档案与指标计算演示系统 (V2.6)")
+st.markdown("© 2026 智慧牧业工程 · 李尧 2024010983 · 在博士生导师张俊老师指导下 · 中国西北农林科技大学动物科技学院 · 覆盖八大畜禽种类数字化养殖档案与指标计算演示系统 (V2.6)")

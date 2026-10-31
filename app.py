@@ -3,6 +3,10 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-31 第9次改动）：
+  0. 彻底根治全流程沙盘未检测到HTML资产的寻址报错，构建全域多级容错网络 (V3.18)：
+     - 封堵云端容器目录漂移漏洞：全面排查 Streamlit Cloud 启动桥接子目录（smart_pig_demo/smart_pig_demo）与根目录层级差异，在桥接子目录及指标库中完成沙盘HTML资产全量镜像同步
+     - 升级多级弹性自愈寻址引擎：扩展 candidate_html_paths 为 17 级自适应容错链路（全覆盖当前目录、工作目录、父级目录、桥接镜像及本地关联工程），杜绝任何环境下资产遗漏
 升级亮点（2026-10-31 第8次改动）：
   0. 原生整合现代规模化养殖全流程2D动态交互沙盘与实训总门户 (V3.17)：
      - 全流程生命周期沙盘深度内嵌：将我国生猪龙头（牧原模式）180天生命周期动态推演、7大核心车间粒子流、36个微小工作板块及120+道工序SOP无缝整合入大屏
@@ -2963,12 +2967,25 @@ def render_full_process_simulation_section(animal_choice):
 
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
-    # 寻址沙盘 HTML 资产
+    # 弹性多级寻址容错网络（兼容本地Mac环境、Streamlit云端Linux容器、仓库根目录与桥接子目录多级寻址）
     candidate_html_paths = [
         CURRENT_DIR / "全流程沙盘模拟资产" / "养殖全流程_2D动态沙盘演示.html",
         CURRENT_DIR / "养殖全流程_2D动态沙盘演示.html",
-        ROOT_DIR / "一线养猪全流程模拟" / "养殖全流程_2D动态沙盘演示.html",
-        Path("/Users/liyao/Desktop/展示项目/一线养猪全流程模拟/养殖全流程_2D动态沙盘演示.html")
+        CURRENT_DIR.parent / "全流程沙盘模拟资产" / "养殖全流程_2D动态沙盘演示.html",
+        CURRENT_DIR.parent / "养殖全流程_2D动态沙盘演示.html",
+        Path.cwd() / "全流程沙盘模拟资产" / "养殖全流程_2D动态沙盘演示.html",
+        Path.cwd() / "养殖全流程_2D动态沙盘演示.html",
+        Path.cwd() / "smart_pig_demo" / "全流程沙盘模拟资产" / "养殖全流程_2D动态沙盘演示.html",
+        Path.cwd() / "smart_pig_demo" / "养殖全流程_2D动态沙盘演示.html",
+        ROOT_DIR / "全流程沙盘模拟资产" / "养殖全流程_2D动态沙盘演示.html",
+        ROOT_DIR / "养殖全流程_2D动态沙盘演示.html",
+        ROOT_DIR / "smart_pig_demo" / "全流程沙盘模拟资产" / "养殖全流程_2D动态沙盘演示.html",
+        ROOT_DIR / "smart_pig_demo" / "养殖全流程_2D动态沙盘演示.html",
+        ROOT_DIR / "表格与指标库" / "养殖全流程_2D动态沙盘演示.html",
+        CURRENT_DIR / "表格与指标库" / "养殖全流程_2D动态沙盘演示.html",
+        ROOT_DIR.parent / "一线养猪全流程模拟" / "养殖全流程_2D动态沙盘演示.html",
+        Path("/Users/liyao/Desktop/展示项目/一线养猪全流程模拟/养殖全流程_2D动态沙盘演示.html"),
+        Path("/Users/liyao/Desktop/一线养猪全流程模拟/养殖全流程_2D动态沙盘演示.html")
     ]
     html_file = None
     for p in candidate_html_paths:

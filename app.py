@@ -3,6 +3,10 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-31 第7次改动）：
+  0. 优化大屏展示视觉层级，将权威公开数据专区置顶调整为第一位展示 (V3.16)：
+     - 全景平铺模式首屏置顶：生猪与奶牛权威公开真实生产数据与AI决策沙盘上调至大屏第一业务板块，用户进入页面即可率先俯瞰全国宏观大盘与权威测定基准
+     - 标签选项卡默认首选激活：将所选畜种专属公开数据标签置于首位（选生猪第一标签为“🐖 生猪公开数据与AI决策”，选奶牛第一标签为“🥛 奶牛公开数据与AI决策”），进屏秒看行业标杆
 升级亮点（2026-10-31 第6次改动）：
   0. 上线生猪权威公开数据对标与AI大模型决策沙盘，严格比照奶牛架构落地 (V3.15)：
      - 生猪真实公开数据底座全量接入：接入全国11年生猪产能宏观公报、省市县多级动态监测、全国种猪性能测定10年育种演进、发改委成本收益账本及头部上市猪企真实生产数据
@@ -4079,7 +4083,17 @@ def render_species_export(animal_choice, df_calc):
 # =====================================================================
 
 if "全景平铺" in view_mode:
-    # 全景平铺模式：全景平铺沉浸呈现，采用略显著分界线与合理增大间距
+    # 全景平铺模式：公开数据第一优先呈现，采用略显著分界线与合理增大间距
+    # 1. 专属权威公开对标数据与决策沙盘（首位优先呈现）：严格按所选畜种动态调度
+    if "生猪" in animal_choice:
+        render_swine_public_data_and_ai_section(animal_choice, df_calc)
+        render_section_divider()
+    if "奶牛" in animal_choice:
+        render_dairy_public_data_and_ai_section(animal_choice, df_calc)
+        render_section_divider()
+    # 后续补充其他畜种（如肉牛生产数据等）可按相同逻辑在此首位追加挂载
+
+    # 2. 本场生产经营走势、成本结构、台账质量体检与SPSS专业统计分析
     render_species_trends(animal_choice, df_calc)
     render_section_divider()
 
@@ -4092,23 +4106,25 @@ if "全景平铺" in view_mode:
     render_spss_analysis_section(animal_choice, df_calc)
     render_section_divider()
 
-    # 专属公开对标数据与决策沙盘：严格按所选畜种动态调度（生猪/奶牛公开数据按需呈现）
-    if "生猪" in animal_choice:
-        render_swine_public_data_and_ai_section(animal_choice, df_calc)
-        render_section_divider()
-    if "奶牛" in animal_choice:
-        render_dairy_public_data_and_ai_section(animal_choice, df_calc)
-        render_section_divider()
-    # 后续补充其他畜种（如生猪育种基准、肉牛生产数据等）可按相同逻辑在此追加挂载
-
     render_finance_section(animal_choice)
     render_section_divider()
 
     render_species_export(animal_choice, df_calc)
 
 else:
-    # 标签选项卡模式：依据当前所选畜种动态构建标签列表与对应渲染逻辑
+    # 标签选项卡模式：公开数据第一优先呈现，依据当前所选畜种动态构建标签列表
     species_tabs_config = [
+        {
+            "label": "🐖 生猪公开数据与AI决策", 
+            "render": lambda: render_swine_public_data_and_ai_section(animal_choice, df_calc),
+            "visible": "生猪" in animal_choice
+        },
+        {
+            "label": "🥛 奶牛公开数据与AI决策", 
+            "render": lambda: render_dairy_public_data_and_ai_section(animal_choice, df_calc),
+            "visible": "奶牛" in animal_choice
+        },
+        # 后续补充其他畜种（如肉牛生产数据等）公开数据在此处首位注册即可
         {
             "label": "📈 生产经营走势", 
             "render": lambda: render_species_trends(animal_choice, df_calc),
@@ -4129,22 +4145,6 @@ else:
             "render": lambda: render_spss_analysis_section(animal_choice, df_calc),
             "visible": True
         },
-        {
-            "label": "🐖 生猪公开数据与AI决策", 
-            "render": lambda: render_swine_public_data_and_ai_section(animal_choice, df_calc),
-            "visible": "生猪" in animal_choice
-        },
-        {
-            "label": "🥛 奶牛公开数据与AI决策", 
-            "render": lambda: render_dairy_public_data_and_ai_section(animal_choice, df_calc),
-            "visible": "奶牛" in animal_choice
-        },
-        # 后续补充其他畜种（如生猪育种基准、肉牛生产数据等）公开数据在此处按相同规则注册即可，示例：
-        # {
-        #     "label": "🐖 生猪公开数据与种猪育种对标",
-        #     "render": lambda: render_pig_public_data_section(animal_choice, df_calc),
-        #     "visible": "生猪" in animal_choice
-        # },
         {
             "label": "💹 产业金融与期货", 
             "render": lambda: render_finance_section(animal_choice),

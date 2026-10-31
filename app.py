@@ -3,6 +3,11 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-31 第8次改动）：
+  0. 原生整合现代规模化养殖全流程2D动态交互沙盘与实训总门户 (V3.17)：
+     - 全流程生命周期沙盘深度内嵌：将我国生猪龙头（牧原模式）180天生命周期动态推演、7大核心车间粒子流、36个微小工作板块及120+道工序SOP无缝整合入大屏
+     - 原生集成岗位实训与答题系统：沙盘内置五大工序微动作特写动画与天梯闯关、全真模拟考、错题本一体化实训功能，支持在线交互与离线单文件导出
+     - 协同多畜种按需调度架构：作为生猪专属高阶交互专区，在全景平铺首位对标区及标签选项卡第二顺位动态挂载，保障大屏轻量高效与多畜种自适应隔离
 升级亮点（2026-10-31 第7次改动）：
   0. 优化大屏展示视觉层级，将权威公开数据专区置顶调整为第一位展示 (V3.16)：
      - 全景平铺模式首屏置顶：生猪与奶牛权威公开真实生产数据与AI决策沙盘上调至大屏第一业务板块，用户进入页面即可率先俯瞰全国宏观大盘与权威测定基准
@@ -2938,6 +2943,77 @@ def render_swine_public_data_and_ai_section(animal_choice, df_calc):
             """)
 
 
+# =====================================================================
+# 五点四点五、现代生猪规模化养殖全流程2D动态沙盘与岗位实训专区
+# =====================================================================
+def render_full_process_simulation_section(animal_choice):
+    # 严格遵循多畜种按需呈现逻辑：仅在选择生猪时展示，非生猪畜种安全跳过
+    if "生猪" not in animal_choice:
+        return
+
+    st.markdown("### 🎮 现代规模化生猪养殖全流程2D动态交互沙盘与实训总门户")
+    st.caption("📌 **业务定位**：以我国生猪养殖龙头（以牧原模式为核心参考）一线生产实践为蓝本，针对集约化、规模化、智能化楼房猪舍全流程运作，将生猪全生命周期细化拆解为 **7大核心车间、36个微小工作板块、120+道工序规范**，内置 180 天生猪生命周期粒子流动态推演、逐日工作 SOP 看板（Day 0~185）、五大工序微动作特写动画，并原生整合【岗位技能闯关答题】实训体系。")
+
+    # 4大核心维度指标卡
+    c_s1, c_s2, c_s3, c_s4 = st.columns(4)
+    c_s1.metric("全链条生产车间", "7 大核心车间", "洗消·配怀·产房·保育·育肥·环控·SOP", delta_color="normal")
+    c_s2.metric("细分作业工序", "120+ 道规范工序", "涵盖36个微小业务工作板块", delta_color="normal")
+    c_s3.metric("生命周期推演跨度", "180 天全生命周期", "Day 0 ~ Day 185 逐日动态推演", delta_color="normal")
+    c_s4.metric("实训考核题库", "全真题库一体化", "天梯闯关·模拟考·错题集全内置", delta_color="normal")
+
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+
+    # 寻址沙盘 HTML 资产
+    candidate_html_paths = [
+        CURRENT_DIR / "全流程沙盘模拟资产" / "养殖全流程_2D动态沙盘演示.html",
+        CURRENT_DIR / "养殖全流程_2D动态沙盘演示.html",
+        ROOT_DIR / "一线养猪全流程模拟" / "养殖全流程_2D动态沙盘演示.html",
+        Path("/Users/liyao/Desktop/展示项目/一线养猪全流程模拟/养殖全流程_2D动态沙盘演示.html")
+    ]
+    html_file = None
+    for p in candidate_html_paths:
+        if p.exists():
+            html_file = p
+            break
+
+    if html_file and html_file.exists():
+        try:
+            with open(html_file, "r", encoding="utf-8") as f:
+                sim_html = f.read()
+
+            import streamlit.components.v1 as components
+            
+            c_btn1, c_btn2 = st.columns([3, 1])
+            with c_btn1:
+                st.info("💡 **操作提示**：下方沙盘支持全交互操作！可自由拖动生命周期滑块（Day 0~185）、切换‘沙盘视图 / 车间SOP / 答题实训’、点击车间查看工序微动作，亦可切换天梯闯关模式实训。")
+            with c_btn2:
+                st.download_button(
+                    "📥 下载离线单文件沙盘 (HTML)",
+                    sim_html,
+                    file_name="现代养殖全流程_2D动态交互沙盘.html",
+                    mime="text/html",
+                    use_container_width=True
+                )
+
+            # 内嵌全交互式 2D 动态沙盘
+            components.html(sim_html, height=920, scrolling=True)
+
+        except Exception as e:
+            st.error(f"⚠️ 沙盘加载提示: {e}")
+    else:
+        st.warning("⚠️ 未在资产目录中检测到《养殖全流程_2D动态沙盘演示.html》，请核对文件路径。")
+
+    with st.expander("📖 查看现代规模化生猪养殖 7 大车间核心生产技术参数速查手册", expanded=False):
+        st.markdown("""
+        - **配种段**：发情静立即配，经产间隔12-18h复配一次，后备间隔8-12h复配；深部输精剂量仅需 **40-50 ml/瓶**（有效活精10-15亿）。
+        - **保胎段**：配后0-28天严格限料 **1.8-2.0 kg/天**，防黄体退化；配后 **25-32天** B超探查孕囊黑区。
+        - **产房段**：保温箱初生温度 **32-34℃**；初生2小时内摄入初乳 **≥250g**；1-2日龄深部肌注补铁 **200mg**；24日龄断奶重 **≥7.0kg**。
+        - **保育段**：入舍首周 **28-29℃**，每周递减 **1.5-2℃**；7天梯度换料法；70日龄转育肥重 **≥28-32kg**。
+        - **育肥段**：料槽铺底率 **30%-40%**；出栏前 **停料4-6小时但严禁断水**；黄金出栏均重 **120-130kg**；全程料肉比目标 **2.45-2.65**。
+        - **生物安全**：洗消烘房核心温控 **70℃ 恒温维持 30 分钟**；物资熏蒸臭氧浓度 **≥40 ppm**；非瘟检测 Ct值 `<36` 强预警。
+        """)
+
+
 # 五点五、奶牛权威公开数据对标与AI大模型决策沙盘（依据技术规划路线）
 # =====================================================================
 def render_dairy_public_data_and_ai_section(animal_choice, df_calc):
@@ -4088,6 +4164,8 @@ if "全景平铺" in view_mode:
     if "生猪" in animal_choice:
         render_swine_public_data_and_ai_section(animal_choice, df_calc)
         render_section_divider()
+        render_full_process_simulation_section(animal_choice)
+        render_section_divider()
     if "奶牛" in animal_choice:
         render_dairy_public_data_and_ai_section(animal_choice, df_calc)
         render_section_divider()
@@ -4117,6 +4195,11 @@ else:
         {
             "label": "🐖 生猪公开数据与AI决策", 
             "render": lambda: render_swine_public_data_and_ai_section(animal_choice, df_calc),
+            "visible": "生猪" in animal_choice
+        },
+        {
+            "label": "🎮 全流程2D动态沙盘模拟", 
+            "render": lambda: render_full_process_simulation_section(animal_choice),
             "visible": "生猪" in animal_choice
         },
         {

@@ -1,0 +1,38 @@
+name: Streamlit Cloud 24/7 Keep-Alive & Auto-Wakeup
+
+on:
+  schedule:
+    # 每 3 小时自动执行一次全天候防休眠巡检与自动唤醒
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    name: Cloud App Probe & Wakeup
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Playwright & Browsers
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright requests
+          python -m playwright install chromium --with-deps
+
+      - name: Execute Keep-Alive Probe and Auto-Wakeup
+        run: |
+          python keep_alive_probe.py
+
+      - name: Verify Custom Domain Gateway
+        run: |
+          echo "Verifying custom domain entrance https://smartpastoral.com/..."
+          curl -s -I -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "https://smartpastoral.com/" | head -n 5 || true

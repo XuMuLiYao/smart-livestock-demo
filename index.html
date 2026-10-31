@@ -44,6 +44,8 @@
       z-index: 9999;
       color: #FFFFFF;
       transition: opacity 0.5s ease-out;
+      padding: 20px;
+      text-align: center;
     }
     .spinner {
       width: 48px;
@@ -63,10 +65,132 @@
       letter-spacing: 0.5px;
       margin-bottom: 8px;
     }
-    .loading-sub {
-      font-size: 13px;
-      color: #8C9BAB;
+    .loading-status-tip {
+      font-size: 13.5px;
+      color: #58A6FF;
+      margin-bottom: 10px;
+      min-height: 20px;
+      transition: all 0.3s ease;
     }
+    .loading-sub {
+      font-size: 12.5px;
+      color: #8C9BAB;
+      max-width: 90%;
+      line-height: 1.5;
+    }
+    .timeout-action-btn {
+      display: none;
+      margin-top: 16px;
+      background: linear-gradient(135deg, #1F4E79, #2E75B6);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 4px 14px rgba(46, 117, 182, 0.4);
+      transition: all 0.2s ease;
+    }
+    .timeout-action-btn:hover {
+      background: linear-gradient(135deg, #2E75B6, #3B8EEA);
+      transform: translateY(-1px);
+    }
+
+    /* 悬浮唤醒与系统健康状态助手胶囊 */
+    #wakeup-assistant {
+      position: fixed;
+      bottom: 12px;
+      right: 14px;
+      z-index: 8888;
+      background: rgba(22, 27, 34, 0.88);
+      border: 1px solid rgba(56, 139, 253, 0.35);
+      border-radius: 22px;
+      padding: 5px 12px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 12px;
+      color: #C9D1D9;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: all 0.3s ease;
+      user-select: none;
+    }
+    #wakeup-assistant:hover {
+      background: rgba(22, 27, 34, 0.96);
+      border-color: rgba(56, 139, 253, 0.65);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #3FB950;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #3FB950;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(63, 185, 80, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+    }
+    .assistant-btn {
+      background: rgba(46, 117, 182, 0.22);
+      border: 1px solid rgba(46, 117, 182, 0.5);
+      color: #E6EDF3;
+      border-radius: 12px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+    }
+    .assistant-btn:hover {
+      background: rgba(46, 117, 182, 0.55);
+      color: #FFFFFF;
+      border-color: #58A6FF;
+    }
+    .toggle-minimize {
+      cursor: pointer;
+      color: #8B949E;
+      font-size: 13px;
+      padding: 0 2px;
+      transition: color 0.2s;
+    }
+    .toggle-minimize:hover {
+      color: #F0F6FC;
+    }
+    #minimized-trigger {
+      display: none;
+      position: fixed;
+      bottom: 12px;
+      right: 14px;
+      z-index: 8888;
+      background: rgba(22, 27, 34, 0.9);
+      border: 1px solid rgba(56, 139, 253, 0.4);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      font-size: 14px;
+      backdrop-filter: blur(8px);
+      transition: transform 0.2s;
+    }
+    #minimized-trigger:hover {
+      transform: scale(1.1);
+      border-color: #58A6FF;
+    }
+
     iframe {
       width: 100vw;
       height: 100vh;
@@ -76,24 +200,49 @@
   </style>
 </head>
 <body>
+  <!-- 智能全屏加载与休眠自愈遮罩 -->
   <div id="loading-screen">
     <div class="spinner"></div>
-    <div class="loading-title">正在加载智慧畜牧数字化管理系统...</div>
-    <div class="loading-sub">smartpastoral.com · 智慧牧业工程 · 李尧 2024010983（在博士生导师张俊老师指导下）</div>
-    <div style="font-size: 11px; color: #8C9BAB; margin-top: 8px; text-align: center; max-width: 85%; line-height: 1.4;">
-      中国西北农林科技大学动物科技学院 · 在博士生导师张俊老师指导下 · 仅供交流学习 · QQ: 3100785036 · WeChat: 13679275651
+    <div class="loading-title">正在连接智慧畜牧数字化管理系统...</div>
+    <div id="loading-status-tip" class="loading-status-tip">正在建立与云端计算节点的双向通信...</div>
+    <div class="loading-sub">
+      smartpastoral.com · 智慧牧业工程 · 李尧 2024010983（在博士生导师张俊老师指导下）<br>
+      中国西北农林科技大学动物科技学院 · 仅供交流学习 · QQ: 3100785036 · WeChat: 13679275651
     </div>
+    <a id="timeout-wake-btn" class="timeout-action-btn" href="https://smartpastoral.streamlit.app/" target="_blank" rel="noopener" onclick="scheduleAutoReload()">
+      ⚡ 节点处于待机模式，点击一键唤醒并进入大屏
+    </a>
   </div>
 
+  <!-- 右下角云端高可用状态与休眠唤醒助手胶囊 -->
+  <div id="wakeup-assistant">
+    <div class="pulse-dot" title="云端全天候保活巡检中"></div>
+    <span style="font-size: 11.5px; color: #8B949E;">系统状态:</span>
+    <span style="color: #7EE787; font-weight: 500;">在线运行</span>
+    <button class="assistant-btn" onclick="pureReloadFrame()" title="重新加载大屏内嵌视图">🔄 刷新</button>
+    <a class="assistant-btn" href="https://smartpastoral.streamlit.app/" target="_blank" rel="noopener" onclick="scheduleAutoReload()" title="如遇云端休眠提示，点击在新窗口直接唤醒">⚡ 一键唤醒</a>
+    <span class="toggle-minimize" onclick="minimizeAssistant()" title="最小化助手">−</span>
+  </div>
+
+  <div id="minimized-trigger" onclick="restoreAssistant()" title="展开系统状态与唤醒助手">
+    ⚡
+  </div>
+
+  <!-- 主业务内嵌看板 (严格保持标准 embed 地址，杜绝参数污染与 499 冲突) -->
   <iframe 
     id="streamlit-frame" 
     src="https://smartpastoral.streamlit.app/?embed=true" 
     allow="accelerometer; autoplay; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write;"
-    onload="hideLoading()">
+    onload="onFrameLoaded()">
   </iframe>
 
   <script>
-    function hideLoading() {
+    const STREAMLIT_ORIGIN = "https://smartpastoral.streamlit.app";
+    let isLoaded = false;
+
+    // 1. iframe 加载成功回调：平滑移除遮罩层
+    function onFrameLoaded() {
+      isLoaded = true;
       const loader = document.getElementById('loading-screen');
       if (loader) {
         loader.style.opacity = '0';
@@ -102,8 +251,65 @@
         }, 500);
       }
     }
-    // 超时兜底隐藏加载动画
-    setTimeout(hideLoading, 5000);
+
+    // 2. 超时多阶段智能提醒 (避免开屏 0ms 冲突，按时间递进更新提示)
+    setTimeout(() => {
+      if (!isLoaded) {
+        const tip = document.getElementById('loading-status-tip');
+        if (tip) {
+          tip.innerHTML = "云端节点正在就绪中（若处于待机通常需 10~20 秒），请稍候...";
+          tip.style.color = "#E3B341";
+        }
+      }
+    }, 6000);
+
+    setTimeout(() => {
+      if (!isLoaded) {
+        const tip = document.getElementById('loading-status-tip');
+        const btn = document.getElementById('timeout-wake-btn');
+        if (tip) {
+          tip.innerHTML = "提示：检测到云端容器可能处于节电待机模式";
+          tip.style.color = "#F85149";
+        }
+        if (btn) {
+          btn.style.display = 'inline-block';
+        }
+      }
+    }, 14000);
+
+    // 3. 纯净平滑刷新 (绝不拼接动态查询参数，保持纯净地址)
+    function pureReloadFrame() {
+      const frame = document.getElementById('streamlit-frame');
+      if (frame) {
+        frame.src = STREAMLIT_ORIGIN + "/?embed=true";
+      }
+    }
+
+    // 4. 用户点击唤醒后的自愈对账 (在用户新标签页唤醒后，自动调度主 iframe 重新对齐)
+    function scheduleAutoReload() {
+      setTimeout(pureReloadFrame, 12000);
+      setTimeout(pureReloadFrame, 22000);
+    }
+
+    // 5. 悬浮助手最小化与展开
+    function minimizeAssistant() {
+      document.getElementById('wakeup-assistant').style.display = 'none';
+      document.getElementById('minimized-trigger').style.display = 'flex';
+    }
+
+    function restoreAssistant() {
+      document.getElementById('wakeup-assistant').style.display = 'flex';
+      document.getElementById('minimized-trigger').style.display = 'none';
+    }
+
+    // 6. 首屏稳定建立连接 60 秒后，再启动温和后台保活 (严格避开开屏握手冲突)
+    setTimeout(() => {
+      setInterval(() => {
+        try {
+          fetch(STREAMLIT_ORIGIN + "/_stcore/health", { mode: "no-cors", cache: "no-store" }).catch(() => {});
+        } catch (e) {}
+      }, 600000); // 每 10 分钟发送一次温和保活脉冲
+    }, 60000);
   </script>
 </body>
 </html>

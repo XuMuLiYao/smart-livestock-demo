@@ -3,6 +3,10 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-10-31 第5次改动）：
+  0. 升级多畜种专属数据动态展示逻辑，严格按当前所选畜种动态调度挂载 (V3.14)：
+     - 专属公开数据按需呈现：重构数据专区呈现机制，奶牛公开真实生产数据与AI决策沙盘仅在畜禽种类选择“奶牛”时动态挂载渲染，非奶牛畜种自动隐藏
+     - 弹性解耦的标签配置引擎：在全景平铺与标签选项卡双模式下均实现多畜种动态过滤调度，选项卡按活跃畜种自适应伸缩，为后续补充生猪、肉牛等其他畜种公开对标数据建立标准化拓展底座
 升级亮点（2026-10-31 第4次改动）：
   0. 精简网页架构，彻底删除‘行业新闻资讯’‘权威论文’‘人才培养’三大板块 (V3.13)：
      - 彻底清除页面展示专区：从主看板全景平铺模式与标签选项卡模式中，物理剔除‘行业新闻资讯’‘权威论文’‘人才培养’三大渲染板块
@@ -2480,6 +2484,10 @@ def render_spss_analysis_section(animal_choice, df_calc):
 # 五点五、奶牛权威公开数据对标与AI大模型决策沙盘（依据技术规划路线）
 # =====================================================================
 def render_dairy_public_data_and_ai_section(animal_choice, df_calc):
+    # 严格遵循多畜种按需呈现逻辑：仅在选择奶牛时展示，非奶牛畜种安全跳过
+    if "奶牛" not in animal_choice:
+        return
+
     st.markdown("### 🥛 奶牛权威公开数据对标与AI大模型决策沙盘")
     st.caption("📌 **业务定位**：严格执行《项目文档更新规则》数据真实性准入红线。数据只有经过【法定财报/公报】vs【行业协会/体系公报】vs【证券研报/Choice终端】多重交叉核验且偏差率<0.5%方可写入。涵盖国家年鉴11年(2015-2025)、生鲜乳旬报9年(2018-2026)、DHI年度公报10年(2016-2025)、发改委成本账本11年(2015-2025)及头部上市奶企8年(2018-2025)长周期时间序列。")
 
@@ -3631,8 +3639,11 @@ if "全景平铺" in view_mode:
     render_spss_analysis_section(animal_choice, df_calc)
     render_section_divider()
 
-    render_dairy_public_data_and_ai_section(animal_choice, df_calc)
-    render_section_divider()
+    # 专属公开对标数据与决策沙盘：严格按所选畜种动态调度（奶牛公开数据仅选择奶牛时展示）
+    if "奶牛" in animal_choice:
+        render_dairy_public_data_and_ai_section(animal_choice, df_calc)
+        render_section_divider()
+    # 后续补充其他畜种（如生猪育种基准、肉牛生产数据等）可按相同逻辑在此追加挂载
 
     render_finance_section(animal_choice)
     render_section_divider()
@@ -3640,30 +3651,56 @@ if "全景平铺" in view_mode:
     render_species_export(animal_choice, df_calc)
 
 else:
-    # 标签选项卡模式
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "📈 生产经营走势", 
-        "🍩 成本效益结构", 
-        "📑 台账质量体检",
-        "📊 SPSS统计分析",
-        "🥛 奶牛公开数据与AI决策",
-        "💹 产业金融与期货", 
-        "📥 测算结果与模版"
-    ])
-    with tab1:
-        render_species_trends(animal_choice, df_calc)
-    with tab2:
-        render_species_structure(animal_choice, df_calc)
-    with tab3:
-        render_species_archive_table(animal_choice, df_calc)
-    with tab4:
-        render_spss_analysis_section(animal_choice, df_calc)
-    with tab5:
-        render_dairy_public_data_and_ai_section(animal_choice, df_calc)
-    with tab6:
-        render_finance_section(animal_choice)
-    with tab7:
-        render_species_export(animal_choice, df_calc)
+    # 标签选项卡模式：依据当前所选畜种动态构建标签列表与对应渲染逻辑
+    species_tabs_config = [
+        {
+            "label": "📈 生产经营走势", 
+            "render": lambda: render_species_trends(animal_choice, df_calc),
+            "visible": True
+        },
+        {
+            "label": "🍩 成本效益结构", 
+            "render": lambda: render_species_structure(animal_choice, df_calc),
+            "visible": True
+        },
+        {
+            "label": "📑 台账质量体检", 
+            "render": lambda: render_species_archive_table(animal_choice, df_calc),
+            "visible": True
+        },
+        {
+            "label": "📊 SPSS统计分析", 
+            "render": lambda: render_spss_analysis_section(animal_choice, df_calc),
+            "visible": True
+        },
+        {
+            "label": "🥛 奶牛公开数据与AI决策", 
+            "render": lambda: render_dairy_public_data_and_ai_section(animal_choice, df_calc),
+            "visible": "奶牛" in animal_choice
+        },
+        # 后续补充其他畜种（如生猪育种基准、肉牛生产数据等）公开数据在此处按相同规则注册即可，示例：
+        # {
+        #     "label": "🐖 生猪公开数据与种猪育种对标",
+        #     "render": lambda: render_pig_public_data_section(animal_choice, df_calc),
+        #     "visible": "生猪" in animal_choice
+        # },
+        {
+            "label": "💹 产业金融与期货", 
+            "render": lambda: render_finance_section(animal_choice),
+            "visible": True
+        },
+        {
+            "label": "📥 测算结果与模版", 
+            "render": lambda: render_species_export(animal_choice, df_calc),
+            "visible": True
+        }
+    ]
+
+    active_tabs = [item for item in species_tabs_config if item["visible"]]
+    tab_objects = st.tabs([item["label"] for item in active_tabs])
+    for tab_obj, item in zip(tab_objects, active_tabs):
+        with tab_obj:
+            item["render"]()
 
 # =====================================================================
 # 十一、知识产权、学术严正声明与页脚版权

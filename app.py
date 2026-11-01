@@ -177,6 +177,7 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data
 /* 核心移动端 100% 满屏自适应，彻底杜绝四分之一屏塌陷与横向溢出缩放 */
 @media screen and (max-width: 768px) {
     html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stMainBlockContainer"], .block-container {
+        width: 100vw !important;
         width: 100% !important;
         max-width: 100vw !important;
         min-width: 100% !important;
@@ -185,29 +186,32 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data
         box-sizing: border-box !important;
         overflow-x: hidden !important;
     }
+    div[data-testid="stCustomComponentV1"]:has(iframe[height="0"]),
+    iframe[height="0"] {
+        display: none !important;
+        position: absolute !important;
+        width: 0px !important;
+        height: 0px !important;
+        overflow: hidden !important;
+        visibility: hidden !important;
+    }
     [data-testid="stHorizontalBlock"] {
         flex-wrap: wrap !important;
     }
     [data-testid="column"] {
-        min-width: 45% !important;
-        flex: 1 1 45% !important;
-    }
-    div[data-testid="stCustomComponentV1"]:has(iframe[height="0"]) {
-        display: none !important;
-        height: 0px !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        min-width: 48% !important;
+        flex: 1 1 48% !important;
     }
 }
 </style>
 """, unsafe_allow_html=True)
 
-# 移动端跨浏览器兼容：注入全局 structuredClone 补丁，根治移动端/微信/旧版Safari未定义报错
+# 移动端跨浏览器兼容：注入全局 structuredClone 与 ICU 错误守护补丁
 import streamlit.components.v1 as _st_components
 _st_components.html("""
 <script>
 (function() {
-  function injectPolyfill(target) {
+  function applySafeGuards(target) {
     if (!target) return;
     try {
       if (typeof target.structuredClone !== "function") {
@@ -232,11 +236,35 @@ _st_components.html("""
           }
         };
       }
+      if (target.Date && target.Date.prototype) {
+        var _d = target.Date.prototype.toLocaleString;
+        target.Date.prototype.toLocaleString = function() {
+          try { return _d.apply(this, arguments); }
+          catch(e) { return this.getFullYear() + "/" + (this.getMonth()+1) + "/" + this.getDate(); }
+        };
+      }
+      if (target.Number && target.Number.prototype) {
+        var _n = target.Number.prototype.toLocaleString;
+        target.Number.prototype.toLocaleString = function() {
+          try { return _n.apply(this, arguments); }
+          catch(e) { return String(this); }
+        };
+      }
+      var prevErr = target.onerror;
+      target.onerror = function(msg) {
+        var s = String(msg || "");
+        if (/icu error/i.test(s) || /structuredclone/i.test(s) || /internal error/i.test(s)) {
+          console.warn("[Streamlit SafeGuard] 成功拦截移动端异常:", s);
+          return true;
+        }
+        if (typeof prevErr === "function") return prevErr.apply(this, arguments);
+        return false;
+      };
     } catch(e) {}
   }
-  injectPolyfill(window);
-  try { injectPolyfill(window.parent); } catch(e) {}
-  try { injectPolyfill(window.top); } catch(e) {}
+  applySafeGuards(window);
+  try { applySafeGuards(window.parent); } catch(e) {}
+  try { applySafeGuards(window.top); } catch(e) {}
 })();
 </script>
 """, height=0, width=0)

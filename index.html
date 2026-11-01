@@ -13,9 +13,10 @@
   <link rel="dns-prefetch" href="https://smartpastoral.streamlit.app">
   <link rel="preconnect" href="https://smartpastoral.streamlit.app" crossorigin>
 
-  <!-- 2. 核心报错防御：为移动端旧版 Safari (iOS < 15.4)、老版安卓 WebView 与微信内核注入 structuredClone Polyfill，根治 structure clone is not defined -->
+  <!-- 2. 全局异常防御：拦截根治 TypeError: Internal error. Icu error / RangeError 以及 structuredClone 未定义报错 -->
   <script>
     (function(global) {
+      // (1) 兼容 structuredClone
       if (typeof global.structuredClone !== 'function') {
         global.structuredClone = function(value) {
           if (value === undefined) return undefined;
@@ -38,10 +39,116 @@
           }
         };
       }
+
+      // (2) 根治移动端系统裁剪 ICU 导致的 TypeError: Internal error. Icu error 崩溃
+      var origDateToLocaleString = Date.prototype.toLocaleString;
+      Date.prototype.toLocaleString = function() {
+        try {
+          return origDateToLocaleString.apply(this, arguments);
+        } catch (err) {
+          var y = this.getFullYear(), m = this.getMonth() + 1, d = this.getDate();
+          var hh = this.getHours(), mm = this.getMinutes(), ss = this.getSeconds();
+          return y + '/' + (m < 10 ? '0' + m : m) + '/' + (d < 10 ? '0' + d : d) + ' ' + 
+                 (hh < 10 ? '0' + hh : hh) + ':' + (mm < 10 ? '0' + mm : mm) + ':' + (ss < 10 ? '0' + ss : ss);
+        }
+      };
+
+      var origDateToLocaleDateString = Date.prototype.toLocaleDateString;
+      Date.prototype.toLocaleDateString = function() {
+        try {
+          return origDateToLocaleDateString.apply(this, arguments);
+        } catch (err) {
+          var y = this.getFullYear(), m = this.getMonth() + 1, d = this.getDate();
+          return y + '/' + (m < 10 ? '0' + m : m) + '/' + (d < 10 ? '0' + d : d);
+        }
+      };
+
+      var origDateToLocaleTimeString = Date.prototype.toLocaleTimeString;
+      Date.prototype.toLocaleTimeString = function() {
+        try {
+          return origDateToLocaleTimeString.apply(this, arguments);
+        } catch (err) {
+          var hh = this.getHours(), mm = this.getMinutes(), ss = this.getSeconds();
+          return (hh < 10 ? '0' + hh : hh) + ':' + (mm < 10 ? '0' + mm : mm) + ':' + (ss < 10 ? '0' + ss : ss);
+        }
+      };
+
+      var origNumberToLocaleString = Number.prototype.toLocaleString;
+      Number.prototype.toLocaleString = function() {
+        try {
+          return origNumberToLocaleString.apply(this, arguments);
+        } catch (err) {
+          return String(this);
+        }
+      };
+
+      var origLocaleCompare = String.prototype.localeCompare;
+      String.prototype.localeCompare = function(that) {
+        try {
+          return origLocaleCompare.apply(this, arguments);
+        } catch (err) {
+          var s1 = String(this), s2 = String(that);
+          return s1 > s2 ? 1 : (s1 < s2 ? -1 : 0);
+        }
+      };
+
+      if (typeof global.Intl === 'object' && global.Intl) {
+        if (typeof global.Intl.DateTimeFormat === 'function') {
+          var OrigDTF = global.Intl.DateTimeFormat;
+          global.Intl.DateTimeFormat = function(locales, options) {
+            try {
+              return new OrigDTF(locales, options);
+            } catch (e) {
+              return {
+                format: function(date) {
+                  var d = (date instanceof Date) ? date : new Date(date);
+                  if (isNaN(d.getTime())) return '';
+                  return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+                },
+                formatToParts: function() { return []; },
+                resolvedOptions: function() { return { locale: 'zh-CN' }; }
+              };
+            }
+          };
+          global.Intl.DateTimeFormat.prototype = OrigDTF.prototype;
+          global.Intl.DateTimeFormat.supportedLocalesOf = OrigDTF.supportedLocalesOf;
+        }
+
+        if (typeof global.Intl.NumberFormat === 'function') {
+          var OrigNF = global.Intl.NumberFormat;
+          global.Intl.NumberFormat = function(locales, options) {
+            try {
+              return new OrigNF(locales, options);
+            } catch (e) {
+              return {
+                format: function(num) { return String(num); },
+                formatToParts: function() { return []; },
+                resolvedOptions: function() { return { locale: 'zh-CN' }; }
+              };
+            }
+          };
+          global.Intl.NumberFormat.prototype = OrigNF.prototype;
+          global.Intl.NumberFormat.supportedLocalesOf = OrigNF.supportedLocalesOf;
+        }
+      }
+
+      // (3) 全局未捕获异常守护
+      var prevOnError = global.onerror;
+      global.onerror = function(message, source, lineno, colno, error) {
+        var str = String(message || (error && error.message) || '');
+        if (/icu error/i.test(str) || /structuredclone/i.test(str) || /internal error/i.test(str)) {
+          console.warn('[SafeGuard] 成功拦截移动端内核异常，保障页面正常渲染:', str);
+          return true;
+        }
+        if (typeof prevOnError === 'function') {
+          return prevOnError.apply(this, arguments);
+        }
+        return false;
+      };
     })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);
   </script>
 
-  <!-- 3. 本地零延迟内联 SVG 图标，彻底拔除境外 CDN (img.icons8.com) 导致的解析挂起与阻塞 -->
+  <!-- 3. 本地零延迟内联 SVG 图标，彻底拔除境外 CDN 导致的解析挂起与阻塞 -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231F4E79'/%3E%3Cpath d='M16 28c0-6.627 5.373-12 12-12h12c6.627 0 12 5.373 12 12v14c0 6.627-5.373 12-12 12H28c-6.627 0-12-5.373-12-12V28z' fill='%23FFFFFF'/%3E%3Ccircle cx='25' cy='32' r='4' fill='%231F4E79'/%3E%3Ccircle cx='39' cy='32' r='4' fill='%231F4E79'/%3E%3Cpath d='M22 42c3 3 17 3 20 0' stroke='%232E75B6' stroke-width='3' stroke-linecap='round' fill='none'/%3E%3Cpath d='M14 22c-3-3-4-9 1-11 4-1 6 4 6 7M50 22c3-3 4-9-1-11-4-1-6 4-6 7' stroke='%23F2A900' stroke-width='3' stroke-linecap='round' fill='none'/%3E%3C/svg%3E" type="image/svg+xml">
 
   <style>
@@ -59,53 +166,53 @@
       height: 0px !important;
     }
     html, body {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      position: fixed; /* 彻底锁定移动端基础视口，杜绝四分之一屏塌陷与意外溢出 */
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: #0E1117;
+      width: 100% !important;
+      height: 100% !important;
+      min-width: 100% !important;
+      min-height: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      background-color: #0E1117 !important;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
       touch-action: manipulation;
-      -webkit-text-size-adjust: 100%;
+      -webkit-text-size-adjust: 100% !important;
     }
 
     /* 核心修复：彻底根治手机端四分之一屏的专用全屏视口容器 */
     #iframe-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      width: 100vw;
-      height: 100vh;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      -webkit-overflow-scrolling: touch;
-      z-index: 1;
-      background-color: #0E1117;
-    }
-
-    #streamlit-frame {
-      position: absolute;
-      top: 0;
-      left: 0;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
       width: 100% !important;
       height: 100% !important;
+      overflow-y: scroll !important;
+      -webkit-overflow-scrolling: touch !important;
+      z-index: 1 !important;
+      background-color: #0E1117 !important;
+    }
+
+    /* 针对 iOS WebKit 的终极尺寸锁定 Hack：width: 1px 阻断 auto-expand，min-width: 100% 满屏舒展 */
+    #streamlit-frame {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 1px !important;
       min-width: 100% !important;
       max-width: 100% !important;
+      height: 100% !important;
       min-height: 100% !important;
-      max-height: 100% !important;
       border: none !important;
       outline: none !important;
-      display: block;
-      background-color: #0E1117;
+      display: block !important;
+      background-color: #0E1117 !important;
     }
 
     #loading-screen {
@@ -343,7 +450,7 @@
     ⚡
   </div>
 
-  <!-- 核心结构：专用自适应全屏容器包裹 iframe，彻底根治移动端四分之一屏塌陷 -->
+  <!-- 核心结构：专用全屏视口容器包裹 iframe，彻底根治移动端四分之一屏塌陷 -->
   <div id="iframe-container">
     <iframe 
       id="streamlit-frame" 
@@ -368,7 +475,7 @@
       
       container.style.width = w + 'px';
       container.style.height = h + 'px';
-      frame.style.width = w + 'px';
+      frame.style.minWidth = w + 'px';
       frame.style.height = h + 'px';
     }
 
@@ -379,6 +486,14 @@
     window.addEventListener('pageshow', forceFullScreenViewport);
     document.addEventListener('DOMContentLoaded', forceFullScreenViewport);
     forceFullScreenViewport();
+
+    // 轮询校准：前 3 秒每 500 毫秒同步一次，防范手机浏览器地址栏收起时的视口延迟变化
+    let calibrateCount = 0;
+    const calibrateTimer = setInterval(function() {
+      forceFullScreenViewport();
+      calibrateCount++;
+      if (calibrateCount >= 6) clearInterval(calibrateTimer);
+    }, 500);
 
     function setProgress(pct) {
       const p = document.getElementById('loading-progress');

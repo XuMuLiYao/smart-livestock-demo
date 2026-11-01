@@ -186,6 +186,23 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data
         box-sizing: border-box !important;
         overflow-x: hidden !important;
     }
+    /* 彻底消除 columns 撑破屏幕（6列指标卡在移动端自动折行排列，杜绝撑出1000px超宽导致手机四分之一缩小） */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+        gap: 0.5rem !important;
+    }
+    [data-testid="column"] {
+        width: 100% !important;
+        min-width: 46% !important;
+        flex: 1 1 46% !important;
+        box-sizing: border-box !important;
+    }
+    [data-testid="stMetric"] {
+        background: rgba(22, 27, 34, 0.7) !important;
+        border-radius: 8px !important;
+        padding: 8px 10px !important;
+        border: 1px solid rgba(48, 54, 61, 0.6) !important;
+    }
     div[data-testid="stCustomComponentV1"]:has(iframe[height="0"]),
     iframe[height="0"] {
         display: none !important;
@@ -194,13 +211,6 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data
         height: 0px !important;
         overflow: hidden !important;
         visibility: hidden !important;
-    }
-    [data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
-    }
-    [data-testid="column"] {
-        min-width: 48% !important;
-        flex: 1 1 48% !important;
     }
 }
 </style>

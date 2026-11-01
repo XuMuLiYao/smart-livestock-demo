@@ -2,17 +2,54 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>智慧畜牧数字化管理与核心经营指标大屏 · smartpastoral.com</title>
   <meta name="description" content="基于图书情报学元数据标引与法定养殖档案（81张表）底座的八大核心畜禽种类（生猪、奶牛、肉牛、奶山羊、肉羊、皮用羊、蛋鸡、肉鸡）数字化经营指标大屏系统">
   <meta name="author" content="李尧 2024010983">
   <meta name="copyright" content="© 2026 智慧牧业工程 · 李尧 2024010983 · 在博士生导师张俊老师指导下 · 中国西北农林科技大学动物科技学院">
-  <link rel="icon" href="https://img.icons8.com/fluency/96/dairy-cow.png" type="image/png">
+  <meta name="theme-color" content="#0E1117">
+
+  <!-- 1. 核心网络加速：提前进行 DNS 预解析与 TCP/TLS 握手预连接，缩减移动端首屏网络时延 -->
+  <link rel="dns-prefetch" href="https://smartpastoral.streamlit.app">
+  <link rel="preconnect" href="https://smartpastoral.streamlit.app" crossorigin>
+
+  <!-- 2. 核心报错防御：为移动端旧版 Safari (iOS < 15.4)、老版安卓 WebView 与微信内核注入 structuredClone Polyfill，根治 structure clone is not defined -->
+  <script>
+    (function(global) {
+      if (typeof global.structuredClone !== 'function') {
+        global.structuredClone = function(value) {
+          if (value === undefined) return undefined;
+          try {
+            return JSON.parse(JSON.stringify(value));
+          } catch (e) {
+            if (value === null || typeof value !== 'object') return value;
+            if (value instanceof Date) return new Date(value.getTime());
+            if (value instanceof RegExp) return new RegExp(value.source, value.flags);
+            if (Array.isArray(value)) {
+              return value.map(function(item) { return global.structuredClone(item); });
+            }
+            var copy = {};
+            for (var key in value) {
+              if (Object.prototype.hasOwnProperty.call(value, key)) {
+                copy[key] = global.structuredClone(value[key]);
+              }
+            }
+            return copy;
+          }
+        };
+      }
+    })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);
+  </script>
+
+  <!-- 3. 本地零延迟内联 SVG 图标，彻底拔除境外 CDN (img.icons8.com) 导致的解析挂起与阻塞 -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231F4E79'/%3E%3Cpath d='M16 28c0-6.627 5.373-12 12-12h12c6.627 0 12 5.373 12 12v14c0 6.627-5.373 12-12 12H28c-6.627 0-12-5.373-12-12V28z' fill='%23FFFFFF'/%3E%3Ccircle cx='25' cy='32' r='4' fill='%231F4E79'/%3E%3Ccircle cx='39' cy='32' r='4' fill='%231F4E79'/%3E%3Cpath d='M22 42c3 3 17 3 20 0' stroke='%232E75B6' stroke-width='3' stroke-linecap='round' fill='none'/%3E%3Cpath d='M14 22c-3-3-4-9 1-11 4-1 6 4 6 7M50 22c3-3 4-9-1-11-4-1-6 4-6 7' stroke='%23F2A900' stroke-width='3' stroke-linecap='round' fill='none'/%3E%3C/svg%3E" type="image/svg+xml">
+
   <style>
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      -webkit-tap-highlight-color: transparent;
       -ms-overflow-style: none !important;
       scrollbar-width: none !important;
     }
@@ -26,9 +63,8 @@
       height: 100%;
       overflow: hidden;
       background-color: #0E1117;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      -ms-overflow-style: none;
-      scrollbar-width: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+      touch-action: manipulation;
     }
     #loading-screen {
       position: fixed;
@@ -36,56 +72,94 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: #0E1117;
+      background: radial-gradient(circle at 50% 30%, #161B22 0%, #0E1117 80%);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       z-index: 9999;
       color: #FFFFFF;
-      transition: opacity 0.5s ease-out;
-      padding: 20px;
+      transition: opacity 0.4s ease-out, visibility 0.4s ease-out;
+      padding: 24px 18px;
       text-align: center;
     }
+    .spinner-box {
+      position: relative;
+      width: 56px;
+      height: 56px;
+      margin-bottom: 22px;
+    }
     .spinner {
-      width: 48px;
-      height: 48px;
-      border: 4px solid rgba(255, 255, 255, 0.1);
+      width: 100%;
+      height: 100%;
+      border: 3.5px solid rgba(88, 166, 255, 0.15);
       border-radius: 50%;
-      border-top-color: #2E75B6;
-      animation: spin 1s ease-in-out infinite;
-      margin-bottom: 20px;
+      border-top-color: #58A6FF;
+      animation: spin 0.85s linear infinite;
+    }
+    .spinner-inner {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      border: 2.5px solid rgba(63, 185, 80, 0.2);
+      border-radius: 50%;
+      border-top-color: #3FB950;
+      animation: spin-reverse 1.2s linear infinite;
     }
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    @keyframes spin-reverse {
+      to { transform: rotate(-360deg); }
+    }
     .loading-title {
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 600;
       letter-spacing: 0.5px;
       margin-bottom: 8px;
+      background: linear-gradient(120deg, #FFFFFF, #C9D1D9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
     .loading-status-tip {
       font-size: 13.5px;
       color: #58A6FF;
-      margin-bottom: 10px;
-      min-height: 20px;
+      margin-bottom: 14px;
+      min-height: 22px;
+      line-height: 1.5;
       transition: all 0.3s ease;
     }
+    .loading-progress-bar {
+      width: 220px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 18px;
+    }
+    .loading-progress-inner {
+      height: 100%;
+      width: 25%;
+      background: linear-gradient(90deg, #1F4E79, #58A6FF, #3FB950);
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
     .loading-sub {
-      font-size: 12.5px;
+      font-size: 12px;
       color: #8C9BAB;
-      max-width: 90%;
-      line-height: 1.5;
+      max-width: 92%;
+      line-height: 1.6;
     }
     .timeout-action-btn {
       display: none;
-      margin-top: 16px;
+      margin-top: 18px;
       background: linear-gradient(135deg, #1F4E79, #2E75B6);
       color: #FFFFFF;
       border: none;
-      border-radius: 20px;
-      padding: 8px 20px;
+      border-radius: 22px;
+      padding: 9px 22px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
@@ -104,7 +178,7 @@
       bottom: 12px;
       right: 14px;
       z-index: 8888;
-      background: rgba(22, 27, 34, 0.88);
+      background: rgba(22, 27, 34, 0.9);
       border: 1px solid rgba(56, 139, 253, 0.35);
       border-radius: 22px;
       padding: 5px 12px;
@@ -113,16 +187,16 @@
       gap: 9px;
       font-size: 12px;
       color: #C9D1D9;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       transition: all 0.3s ease;
       user-select: none;
     }
     #wakeup-assistant:hover {
-      background: rgba(22, 27, 34, 0.96);
-      border-color: rgba(56, 139, 253, 0.65);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+      background: rgba(22, 27, 34, 0.98);
+      border-color: rgba(56, 139, 253, 0.7);
+      box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6);
     }
     .pulse-dot {
       width: 8px;
@@ -138,8 +212,8 @@
       100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
     }
     .assistant-btn {
-      background: rgba(46, 117, 182, 0.22);
-      border: 1px solid rgba(46, 117, 182, 0.5);
+      background: rgba(46, 117, 182, 0.25);
+      border: 1px solid rgba(46, 117, 182, 0.55);
       color: #E6EDF3;
       border-radius: 12px;
       padding: 3px 8px;
@@ -153,7 +227,7 @@
       transition: all 0.2s ease;
     }
     .assistant-btn:hover {
-      background: rgba(46, 117, 182, 0.55);
+      background: rgba(46, 117, 182, 0.6);
       color: #FFFFFF;
       border-color: #58A6FF;
     }
@@ -173,15 +247,15 @@
       bottom: 12px;
       right: 14px;
       z-index: 8888;
-      background: rgba(22, 27, 34, 0.9);
-      border: 1px solid rgba(56, 139, 253, 0.4);
+      background: rgba(22, 27, 34, 0.92);
+      border: 1px solid rgba(56, 139, 253, 0.45);
       border-radius: 50%;
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.45);
       font-size: 14px;
       backdrop-filter: blur(8px);
       transition: transform 0.2s;
@@ -196,15 +270,22 @@
       height: 100vh;
       border: none;
       display: block;
+      background-color: #0E1117;
     }
   </style>
 </head>
 <body>
   <!-- 智能全屏加载与休眠自愈遮罩 -->
   <div id="loading-screen">
-    <div class="spinner"></div>
+    <div class="spinner-box">
+      <div class="spinner"></div>
+      <div class="spinner-inner"></div>
+    </div>
     <div class="loading-title">正在连接智慧畜牧数字化管理系统...</div>
     <div id="loading-status-tip" class="loading-status-tip">正在建立与云端计算节点的双向通信...</div>
+    <div class="loading-progress-bar">
+      <div id="loading-progress" class="loading-progress-inner"></div>
+    </div>
     <div class="loading-sub">
       smartpastoral.com · 智慧牧业工程 · 李尧 2024010983（在博士生导师张俊老师指导下）<br>
       中国西北农林科技大学动物科技学院 · 仅供交流学习 · QQ: 3100785036 · WeChat: 13679275651
@@ -240,44 +321,77 @@
     const STREAMLIT_ORIGIN = "https://smartpastoral.streamlit.app";
     let isLoaded = false;
 
+    function setProgress(pct) {
+      const p = document.getElementById('loading-progress');
+      if (p) p.style.width = pct + '%';
+    }
+
     // 1. iframe 加载成功回调：平滑移除遮罩层
     function onFrameLoaded() {
+      if (isLoaded) return;
       isLoaded = true;
+      setProgress(100);
       const loader = document.getElementById('loading-screen');
       if (loader) {
         loader.style.opacity = '0';
         setTimeout(() => {
           loader.style.display = 'none';
-        }, 500);
+        }, 400);
       }
     }
 
-    // 2. 超时多阶段智能提醒 (避免开屏 0ms 冲突，按时间递进更新提示)
+    // 2. 超时多阶段智能加速提醒 (按时间递进更新提示与进度)
     setTimeout(() => {
       if (!isLoaded) {
+        setProgress(45);
         const tip = document.getElementById('loading-status-tip');
         if (tip) {
-          tip.innerHTML = "云端节点正在就绪中（若处于待机通常需 10~20 秒），请稍候...";
-          tip.style.color = "#E3B341";
+          tip.innerHTML = "正在校验八大畜禽指标库与算法模型缓存，请稍候...";
+          tip.style.color = "#58A6FF";
         }
       }
-    }, 6000);
+    }, 2000);
 
     setTimeout(() => {
       if (!isLoaded) {
+        setProgress(70);
+        const tip = document.getElementById('loading-status-tip');
+        if (tip) {
+          tip.innerHTML = "云端节点正在就绪中（若处于节能休眠通常需 10~15 秒）...";
+          tip.style.color = "#E3B341";
+        }
+      }
+    }, 5000);
+
+    // 提前在第 8 秒呈现一键直达唤醒按钮，免除移动端过长等待
+    setTimeout(() => {
+      if (!isLoaded) {
+        setProgress(85);
         const tip = document.getElementById('loading-status-tip');
         const btn = document.getElementById('timeout-wake-btn');
         if (tip) {
-          tip.innerHTML = "提示：检测到云端容器可能处于节电待机模式";
+          tip.innerHTML = "提示：检测到云端容器可能处于节电待机模式，建议点击下方一键唤醒";
           tip.style.color = "#F85149";
         }
         if (btn) {
           btn.style.display = 'inline-block';
         }
       }
-    }, 14000);
+    }, 8500);
 
-    // 3. 纯净平滑刷新 (绝不拼接动态查询参数，保持纯净地址)
+    // 3. 移动端容错兜底：若 15 秒后 iframe 未抛错误，允许用户点击遮罩直接进入
+    setTimeout(() => {
+      if (!isLoaded) {
+        const loader = document.getElementById('loading-screen');
+        if (loader) {
+          loader.style.cursor = 'pointer';
+          loader.title = '若大屏已在后台渲染完成，点击此处可直接进入';
+          loader.onclick = function() { onFrameLoaded(); };
+        }
+      }
+    }, 15000);
+
+    // 4. 纯净平滑刷新 (绝不拼接动态查询参数，保持纯净地址)
     function pureReloadFrame() {
       const frame = document.getElementById('streamlit-frame');
       if (frame) {
@@ -285,13 +399,13 @@
       }
     }
 
-    // 4. 用户点击唤醒后的自愈对账 (在用户新标签页唤醒后，自动调度主 iframe 重新对齐)
+    // 5. 用户点击唤醒后的自愈对账 (在用户新标签页唤醒后，自动调度主 iframe 重新对齐)
     function scheduleAutoReload() {
-      setTimeout(pureReloadFrame, 12000);
-      setTimeout(pureReloadFrame, 22000);
+      setTimeout(pureReloadFrame, 10000);
+      setTimeout(pureReloadFrame, 18000);
     }
 
-    // 5. 悬浮助手最小化与展开
+    // 6. 悬浮助手最小化与展开
     function minimizeAssistant() {
       document.getElementById('wakeup-assistant').style.display = 'none';
       document.getElementById('minimized-trigger').style.display = 'flex';
@@ -302,7 +416,7 @@
       document.getElementById('minimized-trigger').style.display = 'none';
     }
 
-    // 6. 首屏稳定建立连接 60 秒后，再启动温和后台保活 (严格避开开屏握手冲突)
+    // 7. 首屏稳定建立连接 60 秒后，再启动温和后台保活 (严格避开开屏握手冲突)
     setTimeout(() => {
       setInterval(() => {
         try {

@@ -176,6 +176,45 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data
 </style>
 """, unsafe_allow_html=True)
 
+# 移动端跨浏览器兼容：注入全局 structuredClone 补丁，根治移动端/微信/旧版Safari未定义报错
+import streamlit.components.v1 as _st_components
+_st_components.html("""
+<script>
+(function() {
+  function injectPolyfill(target) {
+    if (!target) return;
+    try {
+      if (typeof target.structuredClone !== function) {
+        target.structuredClone = function(value) {
+          if (value === undefined) return undefined;
+          try {
+            return JSON.parse(JSON.stringify(value));
+          } catch (e) {
+            if (value === null || typeof value !== object) return value;
+            if (value instanceof Date) return new Date(value.getTime());
+            if (value instanceof RegExp) return new RegExp(value.source, value.flags);
+            if (Array.isArray(value)) {
+              return value.map(function(item) { return target.structuredClone(item); });
+            }
+            var copy = {};
+            for (var k in value) {
+              if (Object.prototype.hasOwnProperty.call(value, k)) {
+                copy[k] = target.structuredClone(value[k]);
+              }
+            }
+            return copy;
+          }
+        };
+      }
+    } catch(e) {}
+  }
+  injectPolyfill(window);
+  try { injectPolyfill(window.parent); } catch(e) {}
+  try { injectPolyfill(window.top); } catch(e) {}
+})();
+</script>
+""", height=0, width=0)
+
 def render_section_divider():
     st.markdown("""
     <div class="section-divider-box">
@@ -262,6 +301,7 @@ def get_template_info(animal_choice):
 
     return target_key, target_fname, resolved_path
 
+@st.cache_data(show_spinner=False, ttl=3600)
 def load_template_preview_df(template_path):
     target_p = template_path
     if not target_p.exists():
@@ -358,6 +398,7 @@ def render_kpi_card(col, label, val, is_pct=False, fmt=".2f", unit="",
 # =====================================================================
 # 二、数据解析与指标字典适配器
 # =====================================================================
+@st.cache_data(show_spinner=False, ttl=3600)
 def load_kpi_dict(animal_type):
     path = PIG_KPI_PATH
     if "奶牛" in animal_type:
@@ -434,6 +475,7 @@ def parse_uploaded_excel(uploaded_file, animal_type="生猪"):
 # =====================================================================
 
 # 1. 生猪
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_default_pig_data():
     months = [f"{m}月" for m in range(1, 13)]
     end_sow = [500,502,505,508,510,512,510,508,506,508,510,512]
@@ -539,6 +581,7 @@ def compute_pig_metrics(df_raw):
     return df, kpi
 
 # 2. 奶牛
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_default_cow_data():
     months = [f"{m}月" for m in range(1, 13)]
     end_cow = [1000, 1005, 1010, 1008, 1012, 1015, 1010, 1005, 1008, 1012, 1015, 1020]
@@ -612,6 +655,7 @@ def compute_cow_metrics(df_raw):
     return df, kpi
 
 # 3. 肉牛
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_default_beef_data():
     raw_beef = [
         ("1月", 500, 500, 31, 40, 38, 2, 22320.0, 162936.0, 25840.0, 15245.0, 12660.0, 2, 408000, 374750, 12000, 85000),
@@ -689,6 +733,7 @@ def compute_beef_metrics(df_raw):
     return df, kpi
 
 # 4. 奶山羊
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_default_dairy_goat_data():
     raw_goat = [
         ("1月", 500, 498, 415, 31, 0, 1, 1, 39860.0, 39000.0, 0.0425, 0.0340, 72.0, 54200.0, 1, 135500, 68000),
@@ -756,6 +801,7 @@ def compute_dairy_goat_metrics(df_raw):
     return df, kpi
 
 # 5. 肉羊
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_default_meat_sheep_data():
     raw_sheep = [
         ("1月", 1000, 995, 31, 160, 160, 5, 9610.0, 47089.0, 8080.0, 4322.0, 3514.0, 5, 104000, 117722, 4800, 28000),
@@ -831,6 +877,7 @@ def compute_meat_sheep_metrics(df_raw):
     return df, kpi
 
 # 6. 皮用羊 (滩羊)
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_default_fur_sheep_data():
     raw_fur = [
         ("1月", 500, 31, 30, 35, 28, 6, 1, 25, 8.2, 8.6, 42.0, 156.8, 1, 48000, 6800, 21000),
@@ -897,6 +944,7 @@ def compute_fur_sheep_metrics(df_raw):
     return df, kpi
 
 # 7. 蛋鸡
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_default_layer_data():
     raw_layer = [
         ("1月", 20000, 19930, 31, 50, 20, 578000, 36876.0, 5200, 78550.0, 0.39, 85.0, 50, 235650, 38000, 48000, 14500),
@@ -971,6 +1019,7 @@ def compute_layer_metrics(df_raw):
     return df, kpi
 
 # 8. 肉鸡
+@st.cache_data(show_spinner=False, ttl=3600)
 def get_default_broiler_data():
     raw_data = [
         ("Batch-01", "2026-01-05", 50000, "2026-02-15", 41, 48350, 1650, 390, 130545.0, 198428.0, 97256.0, 27618.0, 1, 1650, 175000, 694498, 28500, 155000),
@@ -2950,6 +2999,14 @@ def render_swine_public_data_and_ai_section(animal_choice, df_calc):
 # =====================================================================
 # 五点四点五、现代生猪规模化养殖全流程2D动态沙盘与岗位实训专区
 # =====================================================================
+@st.cache_data(show_spinner=False, ttl=3600)
+def load_cached_simulation_html(html_file_path_str):
+    try:
+        with open(html_file_path_str, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return ""
+
 def render_full_process_simulation_section(animal_choice):
     # 严格遵循多畜种按需呈现逻辑：仅在选择生猪时展示，非生猪畜种安全跳过
     if "生猪" not in animal_choice:
@@ -2995,8 +3052,7 @@ def render_full_process_simulation_section(animal_choice):
 
     if html_file and html_file.exists():
         try:
-            with open(html_file, "r", encoding="utf-8") as f:
-                sim_html = f.read()
+            sim_html = load_cached_simulation_html(str(html_file))
 
             import streamlit.components.v1 as components
             

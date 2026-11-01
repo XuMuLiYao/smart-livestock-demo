@@ -173,6 +173,32 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data
     margin: 0;
     padding: 0;
 }
+
+/* 核心移动端 100% 满屏自适应，彻底杜绝四分之一屏塌陷与横向溢出缩放 */
+@media screen and (max-width: 768px) {
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stMainBlockContainer"], .block-container {
+        width: 100% !important;
+        max-width: 100vw !important;
+        min-width: 100% !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
+    }
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+    }
+    [data-testid="column"] {
+        min-width: 45% !important;
+        flex: 1 1 45% !important;
+    }
+    div[data-testid="stCustomComponentV1"]:has(iframe[height="0"]) {
+        display: none !important;
+        height: 0px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -184,13 +210,13 @@ _st_components.html("""
   function injectPolyfill(target) {
     if (!target) return;
     try {
-      if (typeof target.structuredClone !== function) {
+      if (typeof target.structuredClone !== "function") {
         target.structuredClone = function(value) {
           if (value === undefined) return undefined;
           try {
             return JSON.parse(JSON.stringify(value));
           } catch (e) {
-            if (value === null || typeof value !== object) return value;
+            if (value === null || typeof value !== "object") return value;
             if (value instanceof Date) return new Date(value.getTime());
             if (value instanceof RegExp) return new RegExp(value.source, value.flags);
             if (Array.isArray(value)) {

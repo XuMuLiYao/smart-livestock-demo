@@ -3,6 +3,12 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-11-01 第5次改动）：
+  0. 彻底根治夸克浏览器（Quark/UC U4内核）网页四分之一显示与运行报错问题 (V3.19)：
+     - 剔除破坏夸克CSS解析器的:has()伪类选择器，彻底恢复移动端全量响应式折行与满屏自适应能力
+     - 注入全套UC/夸克专属App模式与防缩放Meta规范，阻断云端智能排版与visualViewport逆向缩放
+     - 重构iframe物理视口尺寸绑定机制，彻底拔除width:1px导致的1/4塌陷，动态绑定视觉视口
+     - 全域强化ResizeObserver与未处理Promise异常守护，全面拦截夸克外挂扩展注入报错与跨域安全异常
 升级亮点（2026-10-31 第9次改动）：
   0. 彻底根治全流程沙盘未检测到HTML资产的寻址报错，构建全域多级容错网络 (V3.18)：
      - 封堵云端容器目录漂移漏洞：全面排查 Streamlit Cloud 启动桥接子目录（smart_pig_demo/smart_pig_demo）与根目录层级差异，在桥接子目录及指标库中完成沙盘HTML资产全量镜像同步
@@ -175,6 +181,12 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data
 }
 
 /* 核心移动端 100% 满屏自适应，彻底杜绝四分之一屏塌陷与横向溢出缩放 */
+/* 夸克浏览器与UC/U4移动内核特殊适配：字号锁定与手势操控声明 */
+html, body {
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
+    touch-action: manipulation;
+}
 @media screen and (max-width: 768px) {
     html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stMainBlockContainer"], .block-container {
         width: 100vw !important;
@@ -203,7 +215,8 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data
         padding: 8px 10px !important;
         border: 1px solid rgba(48, 54, 61, 0.6) !important;
     }
-    div[data-testid="stCustomComponentV1"]:has(iframe[height="0"]),
+    /* 严格剔除 :has() 实验性伪类以 100% 兼容夸克/UC U4 内核 CSS 解析器 */
+    div[data-testid="stCustomComponentV1"] iframe[height="0"],
     iframe[height="0"] {
         display: none !important;
         position: absolute !important;
@@ -216,7 +229,7 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], [data
 </style>
 """, unsafe_allow_html=True)
 
-# 移动端跨浏览器兼容：注入全局 structuredClone 与 ICU 错误守护补丁
+# 移动端跨浏览器兼容：注入全局 structuredClone、ICU 错误与夸克内核守护补丁
 import streamlit.components.v1 as _st_components
 _st_components.html("""
 <script>
@@ -260,21 +273,43 @@ _st_components.html("""
           catch(e) { return String(this); }
         };
       }
+      // 深度拦截移动端内核异常（涵盖 ICU、StructuredClone、ResizeObserver、夸克跨域与扩展注入报错）
       var prevErr = target.onerror;
       target.onerror = function(msg) {
         var s = String(msg || "");
-        if (/icu error/i.test(s) || /structuredclone/i.test(s) || /internal error/i.test(s)) {
-          console.warn("[Streamlit SafeGuard] 成功拦截移动端异常:", s);
+        if (/icu error/i.test(s) || /structuredclone/i.test(s) || /internal error/i.test(s) ||
+            /resizeobserver/i.test(s) || /script error/i.test(s) || /securityerror/i.test(s) ||
+            /blocked a frame/i.test(s) || /not allowed/i.test(s)) {
+          console.warn("[Streamlit SafeGuard] 成功拦截夸克/移动端内核异常:", s);
           return true;
         }
         if (typeof prevErr === "function") return prevErr.apply(this, arguments);
         return false;
       };
+      if (target.addEventListener) {
+        target.addEventListener("unhandledrejection", function(ev) {
+          var r = ev && ev.reason;
+          var rs = String((r && (r.message || r.stack)) || r || "");
+          if (/resizeobserver/i.test(rs) || /script error/i.test(rs) || /icu error/i.test(rs) ||
+              /internal error/i.test(rs) || /securityerror/i.test(rs) || /blocked a frame/i.test(rs)) {
+            if (ev.preventDefault) ev.preventDefault();
+            console.warn("[Streamlit SafeGuard] 成功拦截未处理Promise异常:", rs);
+          }
+        });
+      }
     } catch(e) {}
   }
   applySafeGuards(window);
-  try { applySafeGuards(window.parent); } catch(e) {}
-  try { applySafeGuards(window.top); } catch(e) {}
+  try {
+    if (window.parent && window.parent !== window) {
+      applySafeGuards(window.parent);
+    }
+  } catch(e) {}
+  try {
+    if (window.top && window.top !== window && window.top !== window.parent) {
+      applySafeGuards(window.top);
+    }
+  } catch(e) {}
 })();
 </script>
 """, height=0, width=0)

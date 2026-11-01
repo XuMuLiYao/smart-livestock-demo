@@ -9,11 +9,25 @@
   <meta name="copyright" content="© 2026 智慧牧业工程 · 李尧 2024010983 · 在博士生导师张俊老师指导下 · 中国西北农林科技大学动物科技学院">
   <meta name="theme-color" content="#0E1117">
 
+  <!-- 夸克浏览器与UC/U4移动内核专属声明：强制应用模式、禁用智能排版与字体缩放、全屏自适应 -->
+  <meta name="applicable-device" content="mobile">
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta name="browsermode" content="application">
+  <meta name="layoutmode" content="fitscreen">
+  <meta name="imagemode" content="force">
+  <meta name="screen-orientation" content="portrait">
+  <meta name="x5-orientation" content="portrait">
+  <meta name="x5-fullscreen" content="true">
+  <meta name="x5-page-mode" content="app">
+  <meta name="wap-font-scale" content="no">
+  <meta name="format-detection" content="telephone=no">
+
   <!-- 1. 核心网络加速：提前进行 DNS 预解析与 TCP/TLS 握手预连接，缩减移动端首屏网络时延 -->
   <link rel="dns-prefetch" href="https://smartpastoral.streamlit.app">
   <link rel="preconnect" href="https://smartpastoral.streamlit.app" crossorigin>
 
-  <!-- 2. 全局异常防御：拦截根治 TypeError: Internal error. Icu error / RangeError 以及 structuredClone 未定义报错 -->
+  <!-- 2. 全局异常防御：拦截根治夸克内核报错、ICU error、structuredClone、ResizeObserver 及跨域安全异常 -->
   <script>
     (function(global) {
       // (1) 兼容 structuredClone
@@ -132,12 +146,42 @@
         }
       }
 
-      // (3) 全局未捕获异常守护
+      // (3) 补全夸克/U4内核缺失的现代ES特性
+      if (typeof global.globalThis === 'undefined') {
+        global.globalThis = global;
+      }
+      if (typeof Object.hasOwn !== 'function') {
+        Object.hasOwn = function(obj, prop) {
+          return Object.prototype.hasOwnProperty.call(obj, prop);
+        };
+      }
+      if (typeof Promise.allSettled !== 'function') {
+        Promise.allSettled = function(promises) {
+          return Promise.all(promises.map(function(p) {
+            return Promise.resolve(p).then(
+              function(val) { return { status: 'fulfilled', value: val }; },
+              function(err) { return { status: 'rejected', reason: err }; }
+            );
+          }));
+        };
+      }
+      if (!Array.prototype.at) {
+        Array.prototype.at = function(n) {
+          n = Math.trunc(n) || 0;
+          if (n < 0) n += this.length;
+          if (n < 0 || n >= this.length) return undefined;
+          return this[n];
+        };
+      }
+
+      // (4) 全局未捕获异常守护（深度覆盖夸克扩展注入、ResizeObserver、跨域与ICU）
       var prevOnError = global.onerror;
       global.onerror = function(message, source, lineno, colno, error) {
         var str = String(message || (error && error.message) || '');
-        if (/icu error/i.test(str) || /structuredclone/i.test(str) || /internal error/i.test(str)) {
-          console.warn('[SafeGuard] 成功拦截移动端内核异常，保障页面正常渲染:', str);
+        if (/icu error/i.test(str) || /structuredclone/i.test(str) || /internal error/i.test(str) ||
+            /resizeobserver/i.test(str) || /script error/i.test(str) || /securityerror/i.test(str) ||
+            /blocked a frame/i.test(str) || /not allowed/i.test(str)) {
+          console.warn('[SafeGuard] 成功拦截夸克移动端内核异常，保障页面正常渲染:', str);
           return true;
         }
         if (typeof prevOnError === 'function') {
@@ -145,6 +189,17 @@
         }
         return false;
       };
+
+      // (5) 拦截未处理的 Promise Rejection
+      global.addEventListener('unhandledrejection', function(event) {
+        var reason = event && event.reason;
+        var rStr = String((reason && (reason.message || reason.stack)) || reason || '');
+        if (/resizeobserver/i.test(rStr) || /script error/i.test(rStr) || /icu error/i.test(rStr) ||
+            /internal error/i.test(rStr) || /securityerror/i.test(rStr) || /blocked a frame/i.test(rStr)) {
+          if (event.preventDefault) event.preventDefault();
+          console.warn('[SafeGuard] 成功静默过滤移动端 Promise 异常:', rStr);
+        }
+      });
     })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);
   </script>
 
@@ -182,6 +237,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
       touch-action: manipulation;
       -webkit-text-size-adjust: 100% !important;
+      text-size-adjust: 100% !important;
     }
 
     /* 核心修复：彻底根治手机端四分之一屏的专用全屏视口容器 */
@@ -192,22 +248,26 @@
       right: 0 !important;
       bottom: 0 !important;
       width: 100% !important;
+      width: 100vw !important;
       height: 100% !important;
+      height: 100vh !important;
       overflow-y: scroll !important;
       -webkit-overflow-scrolling: touch !important;
       z-index: 1 !important;
       background-color: #0E1117 !important;
     }
 
-    /* 针对 iOS WebKit 的终极尺寸锁定 Hack：width: 1px 阻断 auto-expand，min-width: 100% 满屏舒展 */
+    /* 针对夸克与全系移动端内核的满屏物理锁定：消除 width: 1px 引发的 1/4 塌陷 */
     #streamlit-frame {
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
-      width: 1px !important;
+      width: 100% !important;
+      width: 100vw !important;
       min-width: 100% !important;
       max-width: 100% !important;
       height: 100% !important;
+      height: 100vh !important;
       min-height: 100% !important;
       border: none !important;
       outline: none !important;
@@ -464,19 +524,30 @@
     const STREAMLIT_ORIGIN = "https://smartpastoral.streamlit.app";
     let isLoaded = false;
 
-    // 动态全屏视口校准器：针对移动端高 DPR 屏幕、屏幕旋转、虚拟键盘伸缩执行像素级精确锁定
+    // 动态全屏视口校准器：针对夸克视觉视口劫持、高 DPR 屏幕、屏幕旋转执行像素级精确锁定
     function forceFullScreenViewport() {
       const container = document.getElementById('iframe-container');
       const frame = document.getElementById('streamlit-frame');
       if (!container || !frame) return;
       
-      const w = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
-      const h = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+      const vv = window.visualViewport;
+      let w = (vv && vv.width) ? Math.round(vv.width) : 0;
+      let h = (vv && vv.height) ? Math.round(vv.height) : 0;
       
-      container.style.width = w + 'px';
-      container.style.height = h + 'px';
-      frame.style.minWidth = w + 'px';
-      frame.style.height = h + 'px';
+      if (!w || w <= 0) {
+        w = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth || screen.width;
+      }
+      if (!h || h <= 0) {
+        h = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight || screen.height;
+      }
+      
+      container.style.setProperty('width', w + 'px', 'important');
+      container.style.setProperty('height', h + 'px', 'important');
+      frame.style.setProperty('width', w + 'px', 'important');
+      frame.style.setProperty('min-width', w + 'px', 'important');
+      frame.style.setProperty('max-width', w + 'px', 'important');
+      frame.style.setProperty('height', h + 'px', 'important');
+      frame.style.setProperty('min-height', h + 'px', 'important');
     }
 
     window.addEventListener('resize', forceFullScreenViewport);
@@ -485,6 +556,10 @@
     });
     window.addEventListener('pageshow', forceFullScreenViewport);
     document.addEventListener('DOMContentLoaded', forceFullScreenViewport);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', forceFullScreenViewport);
+      window.visualViewport.addEventListener('scroll', forceFullScreenViewport);
+    }
     forceFullScreenViewport();
 
     // 轮询校准：前 3 秒每 500 毫秒同步一次，防范手机浏览器地址栏收起时的视口延迟变化

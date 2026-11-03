@@ -3,6 +3,11 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-11-03 第1次改动）：
+  0. 移除侧边栏管理员安全认证控制台与硬件鉴权模块 (V3.21)：
+     - 安全剔除 render_admin_sidebar_auth 前端渲染控制台与侧边栏调用
+     - 清理 get_device_hardware_fingerprint 与 verify_admin_login 鉴权引擎
+     - 保持系统其他核心指标计算、SPSS分析、沙盘推演与全套数据报表功能 100% 稳定运行
 升级亮点（2026-11-01 第6次改动）：
   0. 根治移动端强缓存与线上版本推送不生效问题，构建全域防缓存与多端对账验证体系 (V3.20)：
      - 注入全套 Cache-Control: no-cache, no-store, must-revalidate 与 Pragma 响应头，阻断夸克等手机端对 index.html 历史视口样式的顽固缓存
@@ -1579,148 +1584,6 @@ def get_masked_submissions_df():
         })
     return pd.DataFrame(masked_list)
 
-
-# =====================================================================
-# 三点六、管理员权限认证与设备硬件（MAC/序列号）安全鉴权引擎
-# =====================================================================
-def get_device_hardware_fingerprint():
-    """跨平台安全获取设备物理 MAC 地址与硬件序列号（兼容 macOS、Linux 容器及云端环境）"""
-    import uuid, subprocess, platform
-    mac_addr = "未知MAC"
-    serial_num = "未知序列号"
-
-    # 1. 尝试获取物理 MAC 地址
-    try:
-        # macOS: en0 物理网卡
-        out = subprocess.check_output(['ifconfig', 'en0'], stderr=subprocess.DEVNULL, timeout=2).decode()
-        for line in out.splitlines():
-            if 'ether' in line:
-                mac_addr = line.strip().split()[1].lower()
-                break
-    except Exception:
-        pass
-
-    if mac_addr == "未知MAC":
-        # Linux: 尝试读取 /sys/class/net/eth0/address
-        try:
-            with open('/sys/class/net/eth0/address', 'r') as f:
-                mac_addr = f.read().strip().lower()
-        except Exception:
-            pass
-
-    if mac_addr == "未知MAC":
-        try:
-            mac_num = uuid.getnode()
-            mac_addr = ':'.join(['{:02x}'.format((mac_num >> el) & 0xff) for el in range(0, 12, 2)][::-1]).lower()
-        except Exception:
-            mac_addr = "00:00:00:00:00:00"
-
-    # 2. 尝试获取硬件序列号
-    try:
-        # macOS: ioreg
-        out_serial = subprocess.check_output(['ioreg', '-l'], stderr=subprocess.DEVNULL, timeout=2).decode()
-        for line in out_serial.splitlines():
-            if 'IOPlatformSerialNumber' in line:
-                serial_num = line.strip().split('=')[-1].strip().replace('"', '')
-                break
-    except Exception:
-        pass
-
-    if serial_num == "未知序列号":
-        # Linux: 尝试读取 DMI 序列号
-        try:
-            with open('/sys/class/dmi/id/product_serial', 'r') as f:
-                serial_num = f.read().strip()
-        except Exception:
-            pass
-
-    if serial_num == "未知序列号":
-        serial_num = platform.node() or "DEV-LOCAL"
-
-    return mac_addr, serial_num
-
-AUTHORIZED_MACS = ["ca:e9:b1:3d:ce:69", "44:13:4f:3c:f1:c5"]
-AUTHORIZED_SERIALS = ["GP71L4XYJX", "MACBOOK-AIR"]
-AUTHORIZED_DEVICE_KEYS = [
-    "GP71L4XYJX",
-    "ca:e9:b1:3d:ce:69",
-    "44:13:4f:3c:f1:c5"
-]
-
-# 管理员安全凭据字典（已彻底删除 admin 账号，仅保留专属管理员账号）
-ADMIN_CREDENTIALS = {
-    "liyao": "12345678jkjkjk"
-}
-
-def verify_admin_login(username, password, input_hardware_key=""):
-    """
-    严格核验管理员登录：
-    1. 账号与密码核验（单点绑定专属管理员账号，杜绝公共默认账号）
-    2. 物理硬件/专用设备密钥双因子核验（无论本地还是云端，必须显式核验合法设备硬件授权，杜绝任意终端越权使用）
-    """
-    clean_user = username.strip()
-    clean_pwd = password.strip()
-    clean_hw = input_hardware_key.strip()
-
-    # 1. 严格核验账号与密码
-    if not clean_user or not clean_pwd:
-        return False, "❌ 请输入管理员账号与管理密码！"
-        
-    if clean_user not in ADMIN_CREDENTIALS or ADMIN_CREDENTIALS[clean_user] != clean_pwd:
-        return False, "❌ 管理员账号或密码错误，请重新核对输入！"
-    
-    # 2. 严格核验设备硬件授权密钥（必须显式验证，杜绝任何设备凭借账号密码自动登录）
-    if not clean_hw:
-        return False, "⚠️ 硬件安全鉴权拦截：必须输入管理员专属设备硬件授权密钥！"
-
-    # 检查硬件凭据是否匹配白名单
-    hw_matched = False
-    clean_hw_upper = clean_hw.upper()
-    for valid_key in AUTHORIZED_DEVICE_KEYS:
-        if clean_hw_upper == valid_key.upper() or clean_hw.lower() == valid_key.lower():
-            hw_matched = True
-            break
-
-    if not hw_matched:
-        return False, "⚠️ 设备硬件安全认证失败：当前设备未通过管理员专属硬件授权许可，访问已被严格拦截！"
-
-    return True, "✅ 设备硬件安全指纹与管理员身份双因子核验成功！"
-
-def render_admin_sidebar_auth():
-    """在侧边栏渲染管理员鉴权控制台（实施严格双因子安全防护，无信息泄露）"""
-    st.markdown("---")
-    st.subheader("🔐 管理员安全认证控制台")
-    
-    is_admin = st.session_state.get("is_admin", False)
-    
-    if is_admin:
-        adm_name = st.session_state.get('admin_user', 'liyao')
-        st.success(f"🟢 **管理员已认证在线**\n\n- 认证身份: `{adm_name}`\n- 安全状态: `双因子硬件授信中`")
-        st.caption("🔒 已解锁系统全景高级管理与生产数据深度分析权限。")
-        if st.button("🚪 退出管理员登录", use_container_width=True, key="admin_logout_btn"):
-            st.session_state["is_admin"] = False
-            st.session_state["admin_user"] = ""
-            st.session_state["admin_device"] = ""
-            st.rerun()
-    else:
-        with st.expander("🔑 管理员权限登录 (硬件鉴权+账号密码)", expanded=not is_admin):
-            st.caption("🔒 **安全提示**：系统已启用设备硬件安全防火墙。只有合法持有管理员账号、专用管理密码以及专属设备硬件授权密钥的指定终端方可解锁权限。")
-            
-            # 干净的中性输入框，绝无任何账号或硬件指纹提示信息泄露
-            adm_user = st.text_input("管理员账号", placeholder="请输入管理员账号", key="sidebar_adm_user")
-            adm_pwd = st.text_input("管理员密码", type="password", placeholder="请输入管理密码", key="sidebar_adm_pwd")
-            adm_hw = st.text_input("设备硬件授权密钥", type="password", placeholder="请输入设备硬件授权密钥", key="sidebar_adm_hw_key")
-            
-            if st.button("🚀 验证硬件与账号登录", use_container_width=True, key="admin_login_btn"):
-                ok, msg = verify_admin_login(adm_user, adm_pwd, adm_hw)
-                if ok:
-                    st.session_state["is_admin"] = True
-                    st.session_state["admin_user"] = adm_user.strip()
-                    st.session_state["admin_device"] = "已授信硬件终端"
-                    st.toast("🎉 管理员身份与设备硬件双因子认证成功！已解锁管理权限。")
-                    st.rerun()
-                else:
-                    st.error(msg)
 
 # =====================================================================
 # 五点六、在线数据处理与SPSS专业统计分析专区 (ANOVA/回归/生长拟合)
@@ -3943,7 +3806,6 @@ with st.sidebar:
     - **SPSS专业统计分析、权威数据对标与现代产业金融**
     """)
     
-    render_admin_sidebar_auth()
 
     st.markdown("---")
     st.subheader("📬 开发者联系方式")

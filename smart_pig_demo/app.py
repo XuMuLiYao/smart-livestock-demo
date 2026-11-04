@@ -19,11 +19,12 @@ if REPO_ROOT_DIR not in sys.path:
 # 2. 切换当前工作目录至仓库根目录，保障相对路径资源（表格、模板、资产等）100% 零报错命中
 os.chdir(REPO_ROOT_DIR)
 
-# 3. 动态加载执行仓库根目录主看板程序 app.py
+# 3. 动态加载执行仓库根目录主看板程序 app.py，并准确注入根目录 __file__
 main_app_path = os.path.join(REPO_ROOT_DIR, "app.py")
 if os.path.exists(main_app_path):
     with open(main_app_path, "r", encoding="utf-8") as f:
         code_obj = compile(f.read(), main_app_path, "exec")
+        globals()['__file__'] = main_app_path
         exec(code_obj, globals())
 else:
     raise FileNotFoundError(f"未在根目录找到主看板程序: {main_app_path}")

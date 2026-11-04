@@ -3,6 +3,12 @@
 智慧畜牧数字化管理与核心指标交互式看板
 项目：智慧牧业工程 · smart_pig_demo
 技术栈：Streamlit + pandas + Plotly + openpyxl
+升级亮点（2026-11-03 第2次改动）：
+  0. 优化上传数据来源交互体验，全面升级「下载自定义模版」视觉呈现与醒目度 (V3.22)：
+     - 侧边栏上传数据源分步视觉强化：在「上传自定义生产 Excel」模式下，打造专属高对比度蓝光渐变指引卡片与步骤徽标，将模版下载与文件上传清晰划分为「步骤 2.1」与「步骤 2.2」
+     - 模版下载按钮高对比度升级：全面采用 type="primary" 强调色大按钮与动态悬浮阴影，直观冠以「📥 立即下载自定义模版」，消除以往浅色暗钮导致的视觉淹没
+     - 主大屏联动唤醒与双通道下载：当切换至自定义上传而尚未传表时，在主看板首屏动态呈现醒目黄蓝告警条与「📥 快捷下载自定义模版」按钮，实现侧边栏与主大屏双通道秒级触达
+     - 保持八大畜种模版多级寻址引擎与容错隔离底座 100% 稳健运行
 升级亮点（2026-11-03 第1次改动）：
   0. 移除侧边栏管理员安全认证控制台与硬件鉴权模块 (V3.21)：
      - 安全剔除 render_admin_sidebar_auth 前端渲染控制台与侧边栏调用
@@ -3765,23 +3771,44 @@ with st.sidebar:
     is_custom_upload = "上传自定义" in data_source_choice
 
     if is_custom_upload:
-        st.markdown("##### 📥 采集模版获取与填报指引")
-        st.info("💡 填报贴士：支持直接下载标准采集模版并在本地修改或补充数值；未采集字段可留空，系统内置容错隔离引擎自动保障其余指标计算正常。")
-        
         _, tmpl_fname, tmpl_path = get_template_info(animal_choice)
+        
+        # 醒目的模版下载专属高亮容器卡片与分步向导
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, rgba(31, 111, 235, 0.22) 0%, rgba(56, 139, 253, 0.10) 100%); 
+                    border: 2px solid #388BFD; 
+                    border-radius: 10px; 
+                    padding: 13px 15px; 
+                    margin: 10px 0 12px 0; 
+                    box-shadow: 0 4px 14px rgba(56, 139, 253, 0.25);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px;">
+                <span style="font-weight: 700; font-size: 14.5px; color: #58A6FF;">
+                    📥 步骤 2.1：下载自定义模版
+                </span>
+                <span style="background-color: #238636; color: #ffffff; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600;">
+                    官方规范·首选
+                </span>
+            </div>
+            <p style="font-size: 12px; color: #C9D1D9; margin: 0 0 6px 0; line-height: 1.5;">
+                ⚡ <strong>填报指引</strong>：为确保指标自动计算与容错引擎 100% 匹配，强烈建议先下载专属模版，在本地修改或录入真实台账后再上传。
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         if tmpl_path.exists():
             with open(tmpl_path, "rb") as f_t:
                 tmpl_bytes = f_t.read()
             st.download_button(
-                label=f"📥 直接下载【{tmpl_fname}】到本地",
+                label=f"📥 立即下载自定义模版：【{tmpl_fname}】",
                 data=tmpl_bytes,
                 file_name=tmpl_fname,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
-                help=f"点击直接下载{animal_choice[:2]}标准 Excel 模版至本地，填入数值后再在此上传"
+                type="primary",
+                help=f"点击直接下载{animal_choice[:2]}标准 Excel 模版至本地，填入数值后再在下方上传"
             )
             
-            with st.expander(f"👀 在线预览【{animal_choice[:2]}生产台账模版】结构与规范", expanded=False):
+            with st.expander(f"👀 在线预览【{animal_choice[:2]}自定义模版】结构与规范", expanded=False):
                 st.caption(f"模版包含规范台账录入与法定指标指南双表，支持直接修改基准值或填入真实数据：")
                 df_prev, df_gd = load_template_preview_df(tmpl_path)
                 if not df_prev.empty:
@@ -3791,10 +3818,19 @@ with st.sidebar:
                     st.markdown("**② 核心字段填报与容错指南预览：**")
                     st.dataframe(df_gd, hide_index=True, use_container_width=True)
 
+        st.markdown(f"""
+        <div style="margin-top: 15px; margin-bottom: 6px; font-weight: 600; font-size: 13.5px; color: #E6EDF3;">
+            📤 步骤 2.2：上传填写好的生产台账工作簿
+        </div>
+        """, unsafe_allow_html=True)
+
         uploaded_file = st.file_uploader(
-            f"📤 请上传填写好的 {animal_choice[:2]} 台账工作簿 (.xlsx)",
-            type=["xlsx", "xls"]
+            f"请上传填写好的 {animal_choice[:2]} 台账工作簿 (.xlsx)",
+            type=["xlsx", "xls"],
+            label_visibility="collapsed"
         )
+    else:
+        st.caption("💡 提示：如需载入自有牧场真实生产数据，请在上方选择「上传自定义...」，系统将即刻提供专属模版下载与智能容错核算。")
 
     st.markdown("---")
     st.subheader("💡 智慧牧业赋能亮点")
@@ -3967,8 +4003,30 @@ with st.expander("📌 点击展开查看《畜禽养殖档案管理规范》法
         - **归档管理**：纸质档案与电子档案同步更新、双向可追溯，严禁伪造、篡改、遗漏与损毁
         """)
 
-if is_custom_upload and uploaded_file is not None:
-    st.success(f"🟢 **当前驱动数据**：{status_msg}。系统已启用容错隔离引擎，部分空值指标已安全隔离。")
+if is_custom_upload:
+    if uploaded_file is not None:
+        st.success(f"🟢 **当前驱动数据**：{status_msg}。系统已启用容错隔离引擎，部分空值指标已安全隔离。")
+    else:
+        _, tmpl_fname, tmpl_path = get_template_info(animal_choice)
+        c_notice1, c_notice2 = st.columns([3, 1])
+        with c_notice1:
+            st.warning(
+                f"💡 **您已切换至「上传自定义数据源」模式**：当前尚未上传本地台账文件，页面暂显示默认基准演练模型供参考对比。"
+                f"请点击右侧按钮或在左侧边栏【📍 第二步】**下载自定义模版**，填入真实台账后上传重算！"
+            )
+        with c_notice2:
+            if tmpl_path.exists():
+                with open(tmpl_path, "rb") as f_t:
+                    tmpl_bytes = f_t.read()
+                st.download_button(
+                    label=f"📥 快捷下载自定义模版",
+                    data=tmpl_bytes,
+                    file_name=tmpl_fname,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    type="primary",
+                    help=f"点击快捷下载{animal_choice[:2]}标准 Excel 模版至本地"
+                )
 
 # 大屏呈现模式控制（全景平铺多板块同时呈现 vs 标签页）
 c_v1, c_v2 = st.columns([3, 1])
@@ -4175,11 +4233,12 @@ def render_species_export(animal_choice, df_calc):
             with open(tmpl_path, "rb") as f_t:
                 t_bytes = f_t.read()
             st.download_button(
-                f"📊 下载标准模版【{tmpl_fname}】(Excel)",
+                f"📥 下载自定义模版【{tmpl_fname}】(Excel)",
                 t_bytes,
                 tmpl_fname,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                use_container_width=True,
+                type="primary"
             )
         else:
             st.info("💡 模版提示：可直接利用导出的 CSV 或标准模版在本地 Excel 修改台账数据，并在侧边栏点击上传重算。")
